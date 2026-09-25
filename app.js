@@ -97,7 +97,7 @@ function startIdleCountdown() {
     document.getElementById('idle-countdown');
 
   if (box) {
-    box.style.display = 'block';
+    box.style.display = 'flex';
   }
 
   clearInterval(idleCountdownTimer);
@@ -882,7 +882,39 @@ async function syncAllFromSheets(){
     loadFromSheet('virtual_office'), loadFromSheet('bookings'), loadFromSheet('documents'), loadFromSheet('settings'),
     loadFromSheet('vacated_clients')
   ]);
-  if(c && c.length) cabins = c;
+  if (c && c.length) {
+    cabins = c.map(row => ({
+      ...row,
+
+      // Always store cabin capacity as a number
+      seater: Number(row.seater) || 0,
+
+      // Convert Google Sheets TRUE/FALSE text into real booleans
+      occupied:
+        row.occupied === true ||
+        row.occupied === 1 ||
+        row.occupied === '1' ||
+        String(row.occupied).trim().toLowerCase() === 'true',
+
+      // Keep IDs and names as strings
+      id: String(row.id || '').trim(),
+      floor: String(row.floor || '').trim(),
+
+      sno: Number(row.sno) || 0,
+
+      occupantId:
+        row.occupantId == null || row.occupantId === ''
+          ? null
+          : String(row.occupantId).trim(),
+
+      occupantName:
+        row.occupantName == null || row.occupantName === ''
+          ? null
+          : String(row.occupantName).trim(),
+
+      note: String(row.note || '')
+    }));
+  }
   occupants = Array.isArray(o) ? o.map(normalizeOccupantRecord) : [];
   payments = Array.isArray(p) ? p : [];
   invoices = Array.isArray(inv) ? inv : [];
@@ -995,9 +1027,35 @@ function normalizeVacatedRecord(v){
 }
 function getStatus(o){ const dl=daysLeft(o.end); if(dl<0) return 'expired'; if(dl<=30) return 'expiring'; return 'active'; }
 function cabinsOf(floor){ return cabins.filter(c=>c.floor===floor); }
-function totalSeats(){ return cabins.reduce((s,c)=>s+c.seater,0); }
-function occupiedSeats(){ return cabins.reduce((s,c)=>{ if(!c.occupied) return s; const linked=occupants.find(o=>o.id===c.occupantId); const n=linked && linked.seatAllocations && Number(linked.seatAllocations[c.id]) ? Number(linked.seatAllocations[c.id]) : c.seater; return s+Math.min(n,c.seater); },0); }
-function occupantSeatCount(o){ return (o.cabins||[]).reduce((s,id)=>{ const c=cabins.find(x=>x.id===id); if(!c) return s; const n=o.seatAllocations && Number(o.seatAllocations[id]) ? Number(o.seatAllocations[id]) : c.seater; return s+Math.min(n,c.seater); },0); }
+function totalSeats(){
+  return cabins.reduce((s,c) => s + (Number(c.seater) || 0), 0);
+}
+function occupiedSeats(){
+  return cabins.reduce((s,c)=>{
+    if(!c.occupied) return s;
+
+    const capacity = Number(c.seater) || 0;
+    const linked = occupants.find(o => o.id === c.occupantId);
+    const allocated = linked && linked.seatAllocations && Number(linked.seatAllocations[c.id])
+      ? Number(linked.seatAllocations[c.id])
+      : capacity;
+
+    return s + Math.min(allocated, capacity);
+  },0);
+}
+function occupantSeatCount(o){
+  return (o.cabins||[]).reduce((s,id)=>{
+    const c=cabins.find(x=>x.id===id);
+    if(!c) return s;
+
+    const capacity = Number(c.seater) || 0;
+    const allocated = o.seatAllocations && Number(o.seatAllocations[id])
+      ? Number(o.seatAllocations[id])
+      : capacity;
+
+    return s + Math.min(allocated, capacity);
+  },0);
+}
 function fmtBytes(n){ if(n>1024*1024) return (n/1024/1024).toFixed(2)+' MB'; if(n>1024) return (n/1024).toFixed(1)+' KB'; return n+' B'; }
 
 // ══════════════════════════════════ FLOOR SUMMARY (DASHBOARD) ══════════════════════════════════
@@ -1005,8 +1063,18 @@ function renderFloorSummaryCards(){
   const el = document.getElementById('floor-summary-cards');
   el.innerHTML = FLOORS.map(floor=>{
     const list = cabinsOf(floor);
-    const seatTotal = list.reduce((s,c)=>s+c.seater,0);
-    const occSeats = list.reduce((s,c)=>{ if(!c.occupied) return s; const o=occupants.find(x=>x.id===c.occupantId); const n=o&&o.seatAllocations&&Number(o.seatAllocations[c.id])?Number(o.seatAllocations[c.id]):c.seater; return s+Math.min(n,c.seater); },0);
+    const seatTotal = list.reduce((s,c) => s + (Number(c.seater) || 0), 0);
+    const occSeats = list.reduce((s,c)=>{
+      if(!c.occupied) return s;
+
+      const capacity = Number(c.seater) || 0;
+      const o = occupants.find(x => x.id === c.occupantId);
+      const allocated = o && o.seatAllocations && Number(o.seatAllocations[c.id])
+        ? Number(o.seatAllocations[c.id])
+        : capacity;
+
+      return s + Math.min(allocated, capacity);
+    },0);
     const cabinCount = list.length;
     const occCabins = list.filter(c=>c.occupied).length;
     const pct = seatTotal ? Math.round(occSeats/seatTotal*100) : 0;
@@ -1034,7 +1102,7 @@ function renderCapacitySummary(){
     if(c.seater===1){ individualCount++; individualSeats+=1; }
     else { cabinCount++; groups[c.seater] = (groups[c.seater]||0)+1; }
   });
-  const seatTotal = list.reduce((s,c)=>s+c.seater,0);
+  const seatTotal = list.reduce((s,c) => s + (Number(c.seater) || 0), 0);
   const sizes = Object.keys(groups).map(Number).sort((a,b)=>b-a);
   let chips = sizes.map(sz=>`<span class="floor-chip">${sz}-seater × ${groups[sz]} cabin${groups[sz]>1?'s':''}</span>`).join('');
   chips += `<span class="floor-chip">Individual × ${individualCount}</span>`;
@@ -1171,13 +1239,16 @@ function renderDashGrid(){
 
   container.innerHTML = FLOORS.map(floor=>{
     const list = cabinsOf(floor);
-    const seatTotal = list.reduce((s,c)=>s+c.seater,0);
+    const seatTotal = list.reduce((s,c) => s + (Number(c.seater) || 0), 0);
     const occSeats = list.reduce((s,c)=>{
       if(!c.occupied) return s;
+
+      const capacity = Number(c.seater) || 0;
       const o = occupants.find(x=>x.id===c.occupantId);
       const allocated = o && o.seatAllocations ? Number(o.seatAllocations[c.id]) : 0;
-      const used = allocated > 0 ? allocated : c.seater;
-      return s + Math.min(used,c.seater);
+      const used = allocated > 0 ? allocated : capacity;
+
+      return s + Math.min(used, capacity);
     },0);
     const vacantSeats = Math.max(0,seatTotal-occSeats);
     const vacantCabins = list.filter(c=>!c.occupied).length;

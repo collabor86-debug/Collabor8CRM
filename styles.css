@@ -135,9 +135,50 @@
   .dash-floor-quick-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:9px; }
   .dash-floor-summary { gap:5px; margin:0 0 9px; }
   .dash-floor-summary .summary-chip { font-size:10px; padding:3px 6px; }
-  .dash-floor-grid { grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; margin-top:10px; }
-  .dash-floor-grid .ws-cell { min-height:48px; padding:6px 3px; font-size:10px; }
-  .dash-floor-grid .cell-seater { font-size:8px; }
+  .dash-floor-grid {
+    display:grid;
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:6px;
+    width:100%;
+    margin-top:10px;
+    box-sizing:border-box;
+  }
+  .dash-floor-grid .ws-cell {
+    width:100%;
+    min-width:0;
+    min-height:52px;
+    aspect-ratio:auto;
+    box-sizing:border-box;
+    padding:7px 4px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    border-radius:6px;
+    font-size:10px;
+    font-weight:600;
+    line-height:1.15;
+    overflow:hidden;
+  }
+  .dash-floor-grid .ws-cell > div:first-child {
+    width:100%;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .dash-floor-grid .cell-seater {
+    width:100%;
+    margin-top:3px;
+    font-size:8px;
+    line-height:1.1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .dash-floor-grid .ws-cell:hover {
+    transform:translateY(-1px);
+  }
   .dash-floor-more { width:100%; margin-top:9px; color:var(--gold); }
   .grid-floors { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:16px; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:0 4px 16px rgba(0,0,0,0.08); }
@@ -430,7 +471,7 @@
     .topbar-right { width:100%; }
     .topbar-right .search-input { flex:1; width:auto; min-width:0; }
     .ws-grid, #floor-ws-grid { grid-template-columns:repeat(5,1fr) !important; }
-    .dash-floor-grid { grid-template-columns:repeat(5,minmax(0,1fr)) !important; }
+    .dash-floor-grid { grid-template-columns:repeat(5,minmax(0,1fr)) !important; gap:6px; }
     .form-row, .cabin-check-grid { grid-template-columns:1fr 1fr; }
     .cabin-card-grid { grid-template-columns:1fr 1fr; }
     .doc-grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
@@ -443,7 +484,7 @@
     .main { padding-left:12px; padding-right:12px; }
     .metrics-grid { grid-template-columns:1fr 1fr; }
     .ws-grid, #floor-ws-grid { grid-template-columns:repeat(4,1fr) !important; }
-    .dash-floor-grid { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+    .dash-floor-grid { grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:6px; }
     .topbar-title { font-size:21px; }
     .cabin-check-grid { grid-template-columns:1fr 1fr; }
     .occ-doc-grid { grid-template-columns:1fr; }
@@ -574,42 +615,58 @@
 @media(max-width:900px){.p7-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.p7-grid{grid-template-columns:1fr}}
 
+/* ═══════════════════════════════════════
+   SIDEBAR AUTO LOGOUT TIMER
+   ═══════════════════════════════════════ */
+
 #idle-countdown {
-  position: fixed;
-  top: 14px;
-  right: 20px;
-  z-index: 10000;
+  position:static;
+  width:100%;
+  margin-top:10px;
+  display:none;
+  box-sizing:border-box;
+  padding:8px 10px;
+  border:1px solid var(--border2);
+  border-radius:8px;
+  background:var(--bg3);
+  color:var(--text2);
+  font-size:10.5px;
+  line-height:1.4;
+  font-weight:600;
+  box-shadow:none;
+  pointer-events:none;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
 
-  display: none;
+#idle-countdown .idle-countdown-label {
+  color:var(--text3);
+  white-space:nowrap;
+}
 
-  padding: 8px 14px;
-
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-
-  background: var(--card);
-  color: var(--text);
-
-  font-size: 12px;
-  font-weight: 600;
-
-  box-shadow: var(--shadow-elev);
-
-  pointer-events: none;
+#idle-countdown-time {
+  color:var(--gold);
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.5px;
 }
 
 #idle-countdown.warning {
-  color: var(--red);
-  border-color: var(--red);
+  color:var(--red);
+  border-color:var(--red);
+  background:var(--red-dim);
 }
 
-@media (max-width: 700px) {
+#idle-countdown.warning .idle-countdown-label,
+#idle-countdown.warning #idle-countdown-time {
+  color:var(--red);
+}
 
+@media (max-width:700px) {
   #idle-countdown {
-    top: 10px;
-    right: 10px;
-    padding: 6px 9px;
-    font-size: 11px;
+    margin-top:8px;
+    padding:7px 9px;
+    font-size:10px;
   }
-
 }
