@@ -1,0 +1,14 @@
+# Local environment/secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies / local tooling
+node_modules/
+.vercel/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

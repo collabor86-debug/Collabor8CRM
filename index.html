@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COLLABOR8 — Co-Working Space Management</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <img class="brand-logo brand-logo-login" src="assets/collabor8-logo.png" alt="COLLABOR8 Work Space">
+    <div class="login-logo-sub">Co-Working Space Suite — sign in to continue</div>
+    <div class="login-field"><label for="login-username">Username</label><input type="text" id="login-username" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"></div>
+    <div class="login-field"><label for="login-password">Password</label><input type="password" id="login-password" autocomplete="current-password" onkeydown="if(event.key==='Enter')attemptLogin()"></div>
+    <div class="login-error" id="login-error"></div>
+    <button class="login-btn" id="login-submit-btn" onclick="attemptLogin()">Sign In</button>
+    <div class="login-hint" id="login-loading-hint" style="color:var(--gold);display:none;">⏳ Loading…</div>
+    <div class="login-hint" id="login-static-hint">Use your Collabor8 account credentials.</div>
+  </div>
+</div>
+
+ <div id="idle-countdown" class="idle-countdown">
+  🔒 Auto logout: 
+  <span id="idle-countdown-time">10.00</span>
+</div>
+
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+<div class="hamburger" id="hamburger-btn" onclick="toggleSidebar()">☰</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="main-sidebar">
+  <div class="sidebar-logo">
+    <img class="brand-logo brand-logo-sidebar" src="assets/collabor8-logo.png" alt="COLLABOR8 Work Space">
+    <div class="logo-loc">No.9 &amp; 10, Chakrapani St, Guindy, Chennai</div>
+  </div>
+  
+  <div class="nav-section">Overview</div>
+  <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">⬡</span> Dashboard</div>
+  <div class="nav-item" onclick="showPage('floors',this)"><span class="nav-icon">⊞</span> Seating &amp; Floors</div>
+  <div class="nav-section">Operations</div>
+  <div class="nav-item" onclick="showPage('occupants',this)"><span class="nav-icon">◎</span> Occupants</div>
+  <div class="nav-item" onclick="showPage('vacated',this)"><span class="nav-icon">↪</span> Vacated Clients</div>
+  <div class="nav-item" onclick="showPage('virtualoffice',this)"><span class="nav-icon">◇</span> Virtual Office</div>
+  <div class="nav-item" onclick="showPage('usage',this)"><span class="nav-icon">⏱</span> Usage &amp; Bookings</div>
+  <div class="nav-item" onclick="showPage('payments',this)"><span class="nav-icon">₹</span> Payments
+    <span style="margin-left:auto;background:var(--amber-dim);color:var(--amber);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;" id="due-count-nav">0</span>
+  </div>
+  <div class="nav-item" onclick="showPage('invoices',this)"><span class="nav-icon">🧾</span> Invoices
+    <span style="margin-left:auto;background:var(--blue-dim);color:var(--blue);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;" id="invoice-pending-nav">0</span>
+  </div>
+  <div class="nav-item admin-only-nav" onclick="showPage('revenue',this)"><span class="nav-icon">◈</span> Revenue</div>
+  <div class="nav-item" onclick="showPage('alerts',this)"><span class="nav-icon">◉</span> Alerts
+    <span style="margin-left:auto;background:var(--coral-dim);color:var(--coral);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;" id="alert-count-nav">0</span>
+  </div>
+  <div class="nav-item" onclick="showPage('documents',this)"><span class="nav-icon">⌘</span> Documents
+    <span style="margin-left:auto;background:var(--violet-dim);color:var(--violet);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;" id="doc-count-nav">0</span>
+  </div>
+  <div class="nav-section">Growth</div>
+  <div class="nav-item" onclick="showPage('sales',this)"><span class="nav-icon">◆</span> Sales Pipeline
+    <span style="margin-left:auto;background:var(--teal-dim);color:var(--teal);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;" id="lead-count-nav">0</span>
+  </div>
+  <div class="nav-section">Manage</div>
+  <div class="nav-item" onclick="showPage('add',this)"><span class="nav-icon">⊕</span> Add Occupant</div>
+  <div class="nav-item admin-only-nav" onclick="showPage('datasync',this)"><span class="nav-icon">⇅</span> Excel Data Sync</div>
+  <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
+  <div class="nav-item admin-only-nav" onclick="showPage('reports',this)"><span class="nav-icon">▥</span> Reports</div>
+  <div class="nav-item admin-only-nav" onclick="showPage('users',this)"><span class="nav-icon">♙</span> Users &amp; Roles</div>
+  <div class="nav-item admin-only-nav" onclick="showPage('audit',this)"><span class="nav-icon">▤</span> Audit Logs</div>
+  <div class="nav-section-label">OPERATIONS+<\/div>
+  <div class="nav-item" onclick="showPage('maintenance',this)"><span class="nav-icon">🔧</span> Maintenance</div>
+  <div class="nav-item" onclick="showPage('inventory',this)"><span class="nav-icon">▦</span> Inventory & Assets</div>
+  <div class="nav-item" onclick="showPage('vendors',this)"><span class="nav-icon">◌</span> Vendors</div>
+  <div class="nav-item admin-only-nav" onclick="showPage('expenses',this)"><span class="nav-icon">₹</span> Expenses</div>
+  <div class="nav-item admin-only-nav" onclick="showPage('automation',this)"><span class="nav-icon">⚡</span> Automation</div>
+  <div class="sidebar-footer">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12.5px;color:var(--text2);">
+      <span>Signed in as <strong id="sf-username" style="color:var(--text);">—</strong><span class="role-badge" id="sf-role-badge">—</span></span>
+    </div>
+    <button class="btn btn-sm" onclick="logoutUser()" style="width:100%;margin-bottom:12px;">⏻ Log Out</button>
+    <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" style="margin-bottom:12px;">
+      <span class="tt-icon" id="theme-toggle-icon">☾</span>
+      <span id="theme-toggle-label">Dark mode</span>
+    </button>
+    <strong id="sf-total">213 total seats</strong>
+    <span>3 floors · dynamically editable</span>
+  </div>
+</nav>
+
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip">
+  <strong id="tt-id"></strong>
+  <span id="tt-name"></span>
+  <span id="tt-company"></span>
+  <span id="tt-exp"></span>
+  <span id="tt-rent"></span>
+</div>
+
+<!-- CABIN DETAIL MODAL -->
+<div class="modal-overlay" id="cabinModal">
+  <div class="modal">
+    <div class="modal-title"><span id="cm-title">Cabin</span><span class="modal-close" onclick="closeCabinModal()">✕</span></div>
+    <div id="cm-body" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
+    <div class="modal-actions" id="cm-actions"></div>
+  </div>
+</div>
+
+<!-- OCCUPANT MODAL (quick add) -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title"><span id="modal-title-text">New Lease</span><span class="modal-close" onclick="closeModal()">✕</span></div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Use the full <strong style="color:var(--gold)">Add Occupant</strong> page for cabin selection. Quick add below requires exact Cabin ID(s).</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cabin ID(s), comma separated</label><input class="form-input" id="f-ws" placeholder="e.g. F6 or S1,S2"/></div>
+      <div class="form-group"><label class="form-label">Occupant Name</label><input class="form-input" id="f-name" placeholder="Full name"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Company / Organisation</label><input class="form-input" id="f-company" placeholder="Company name"/></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f-email" type="email"/></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="f-phone" placeholder="+91 XXXXX XXXXX"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Billing Address <span style="color:var(--text3);font-weight:400;">— used to auto-fill invoices</span></label><textarea class="form-input" id="f-address" rows="2" style="resize:vertical;" placeholder="Address to print on invoices"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Agreement Start Date</label><input class="form-input" id="f-start" type="date"/></div>
+      <div class="form-group"><label class="form-label">Agreement End Date</label><input class="form-input" id="f-end" type="date"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Security Deposit (₹)</label><input class="form-input" id="f-deposit" type="number" min="0" value="0"/></div>
+      <div class="form-group"><label class="form-label">Seat Advance (₹)</label><input class="form-input" id="f-advance" type="number" min="0" value="0"/></div>
+    </div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Car Parking (slots)</label><input class="form-input" id="f-parking" type="number" value="0" min="0" oninput="syncQuickParkingFields()"/></div><div class="form-group"><label class="form-label">Car Parking Revenue / Month (₹)</label><input class="form-input" id="f-parking-revenue" type="number" min="0" value="0" oninput="onQuickParkingRevenueChange()"/></div></div>
+    <div class="form-group"><label class="form-label">Car Parking Deposit (₹)</label><input class="form-input" id="f-parking-deposit" type="number" min="0" value="0"/></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOccupantQuick()">Save Occupant</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT OCCUPANT MODAL -->
+<div class="modal-overlay" id="editOccModal">
+  <div class="modal">
+    <div class="modal-title"><span>Edit Occupant</span><span class="modal-close" onclick="closeEditOccModal()">✕</span></div>
+    <input type="hidden" id="eo-id"/>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cabin ID(s), comma separated</label><input class="form-input" id="eo-ws" oninput="syncEditSeatAllocationFields()"/></div>
+      <div class="form-group"><label class="form-label">Occupant Name</label><input class="form-input" id="eo-name"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Company / Organisation</label><input class="form-input" id="eo-company"/></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="eo-email" type="email"/></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="eo-phone"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Billing Address <span style="color:var(--text3);font-weight:400;">— used to auto-fill invoices</span></label><textarea class="form-input" id="eo-address" rows="2" style="resize:vertical;" placeholder="Address to print on invoices"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Agreement Start Date</label><input class="form-input" id="eo-start" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10"/></div>
+      <div class="form-group"><label class="form-label">Agreement End Date</label><input class="form-input" id="eo-end" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Monthly Rent (₹)</label><input class="form-input" id="eo-rent" type="number"/></div>
+      <div class="form-group"><label class="form-label">Car Parking Slots</label><input class="form-input" id="eo-parking" type="number" min="0"/></div>
+    </div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Car Parking Revenue / Month (₹)</label><input class="form-input" id="eo-parking-revenue" type="number" min="0"/></div><div class="form-group"><label class="form-label">Car Parking Deposit (₹)</label><input class="form-input" id="eo-parking-deposit" type="number" min="0"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Security Deposit (₹)</label><input class="form-input" id="eo-deposit" type="number" min="0"/></div>
+      <div class="form-group"><label class="form-label">Seat Advance (₹)</label><input class="form-input" id="eo-advance" type="number" min="0"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Actual Occupied Seats</label><div class="section-note">Set the number of seats actually leased in each selected cabin. Example: F2/F3 capacity 7, leased seats 6.</div><div id="eo-seat-allocation" class="seat-allocation-list"></div></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:-6px;margin-bottom:10px;">Changing cabin IDs will free the old cabin(s) and occupy the new one(s) — new cabins must currently be vacant.</div>
+
+    <div class="form-group">
+      <label class="form-label">Documents <span style="color:var(--text3);">(Aadhaar, PAN, GST Certificate, NOC — PDF/JPG/JPEG/PNG)</span></label>
+      <div class="occ-doc-grid" id="eo-docs-grid"></div>
+      <input type="file" id="eo-doc-file-input" accept=".pdf,.jpg,.jpeg,.png,image/jpeg,image/png,application/pdf" style="display:none;" onchange="onOccDocFileChosen(event)"/>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEditOccModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditOccupant()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- VACATED CLIENT MODAL -->
+<div class="modal-overlay" id="vacatedModal"><div class="modal" style="width:760px;max-height:90vh;overflow-y:auto;"><div class="modal-title"><span>Vacate Client &amp; Settle Funds</span><span class="modal-close" onclick="closeVacatedModal()">✕</span></div><input type="hidden" id="vac-id"/><div class="form-row"><div class="form-group"><label class="form-label">Client</label><input class="form-input" id="vac-name" readonly/></div><div class="form-group"><label class="form-label">Company</label><input class="form-input" id="vac-company" readonly/></div></div><div class="form-row"><div class="form-group"><label class="form-label">Cabin(s)</label><input class="form-input" id="vac-cabins" readonly/></div><div class="form-group"><label class="form-label">Date of Vacating</label><input class="form-input" id="vac-date" type="date"/></div></div><div class="vacated-section-title">Client Funds</div><div class="form-row"><div class="form-group"><label class="form-label">Security Deposit (₹)</label><input class="form-input" id="vac-deposit" type="number" min="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Deposit Settlement</label><select class="form-input" id="vac-deposit-action"><option>Refund</option><option>Adjusted</option></select></div></div><div class="form-row"><div class="form-group"><label class="form-label">Car Parking Deposit (₹)</label><input class="form-input" id="vac-parking-deposit" type="number" min="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Parking Deposit Settlement</label><select class="form-input" id="vac-parking-deposit-action"><option>Refund</option><option>Adjusted</option></select></div></div><div class="form-row"><div class="form-group"><label class="form-label">Advance Amount (₹)</label><input class="form-input" id="vac-advance" type="number" min="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Advance Settlement</label><select class="form-input" id="vac-advance-action"><option>Refund</option><option>Adjusted</option></select></div></div><div class="vacated-section-title">Deductions</div><div class="form-row"><div class="form-group"><label class="form-label">Damage Deduction (₹)</label><input class="form-input" id="vac-damage" type="number" min="0" value="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Unpaid Rent Deduction (₹)</label><input class="form-input" id="vac-unpaid-rent" type="number" min="0" value="0" oninput="calculateVacatedSettlement()"/></div></div><div class="vacated-settlement-grid"><div><span>Total Client Funds</span><strong id="vac-total-funds">₹0</strong></div><div><span>Total Deductions</span><strong id="vac-total-deductions">₹0</strong></div><div><span>Final Refund / Balance</span><strong id="vac-refund-value">₹0</strong></div></div><div class="form-row"><div class="form-group"><label class="form-label">Date of Refund / Settlement</label><input class="form-input" id="vac-refund-date" type="date"/></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="vac-notes" placeholder="Settlement notes / reason for deductions"/></div></div><div class="section-note">Damage and unpaid-rent deductions are taken from the combined deposit + advance. The CRM will never calculate a negative refund.</div><div class="modal-actions"><button class="btn" onclick="closeVacatedModal()">Cancel</button><button class="btn btn-primary" onclick="confirmVacateClient()">✓ Confirm Vacated &amp; Save Settlement</button></div></div></div>
+
+<!-- LEAD DETAIL / CREATE MODAL -->
+<div class="modal-overlay" id="leadModal">
+  <div class="modal" style="width:560px;">
+    <div class="modal-title"><span id="lead-modal-title">New Lead</span><span class="modal-close" onclick="closeLeadModal()">✕</span></div>
+    <input type="hidden" id="ld-id"/>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="ld-name" placeholder="Contact name"/></div>
+      <div class="form-group"><label class="form-label">Company</label><input class="form-input" id="ld-company" placeholder="Company name"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="ld-phone" placeholder="+91 XXXXX XXXXX"/></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="ld-email" type="email"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Source</label>
+        <select class="form-input" id="ld-source" onchange="onLeadSourceChange()"><option>Cold Call</option><option>Instagram</option><option>Facebook</option><option>Google</option><option>LinkedIn</option><option>WhatsApp</option><option>Website</option><option>Agency</option><option>Justdial</option><option>Referral</option><option>Walk-in</option><option>Other</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Stage</label>
+        <select class="form-input" id="ld-stage"></select>
+      </div>
+    </div>
+    <div class="form-group" id="ld-agency-group" style="display:none;"><label class="form-label">Agency Name</label><input class="form-input" id="ld-agency-name" placeholder="e.g. ABC Business Solutions"/></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Seats Interested</label><input class="form-input" id="ld-seats" type="number" min="1" value="1"/></div>
+      <div class="form-group"><label class="form-label">Next Follow-up Date</label><input class="form-input" id="ld-followup" type="date"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="ld-notes" placeholder="Requirements, budget, etc."/></div>
+    <div class="modal-actions" style="justify-content:space-between;">
+      <button class="btn btn-danger" id="ld-delete-btn" onclick="deleteLeadFromModal()" style="display:none;">Delete Lead</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn" onclick="closeLeadModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveLead()">Save Lead</button>
+      </div>
+    </div>
+
+    <div id="ld-existing-section" style="display:none;margin-top:18px;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="card-title" style="margin-bottom:10px;">Activity Timeline</div>
+      <div id="ld-activities" style="max-height:180px;overflow-y:auto;margin-bottom:12px;"></div>
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:8px;"><select class="form-input" id="act-type"><option>Call</option><option>Email</option><option>WhatsApp</option><option>Meeting</option><option>Note</option></select></div>
+        <div class="form-group" style="margin-bottom:8px;"><input class="form-input" id="act-notes" placeholder="Outcome / notes"/></div>
+      </div>
+      <button class="btn btn-sm" onclick="addActivity()">+ Log Activity</button>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button class="btn" onclick="draftFollowupEmail()">✉ Draft Follow-up Email</button>
+        <button class="btn" onclick="openQuoteModal(document.getElementById('ld-id').value)">Create Quotation</button>
+        <button class="btn btn-primary" onclick="convertLeadToOccupant()">Convert to Occupant →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUOTATION MODAL -->
+<div class="modal-overlay" id="quoteModal">
+  <div class="modal" style="width:560px;">
+    <div class="modal-title"><span>Create Quotation</span><span class="modal-close" onclick="closeQuoteModal()">✕</span></div>
+    <input type="hidden" id="q-lead-id"/>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client Name</label><input class="form-input" id="q-name"/></div>
+      <div class="form-group"><label class="form-label">Company</label><input class="form-input" id="q-company"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="q-email" type="email"/></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Seats Required</label><input class="form-input" id="q-seats" type="number" min="1" value="1" oninput="updateQuotePreview()"/></div>
+      <div class="form-group"><label class="form-label">Discount (%)</label><input class="form-input" id="q-discount" type="number" min="0" max="100" value="0" oninput="updateQuotePreview()"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Valid Until</label><input class="form-input" id="q-valid" type="date" onchange="updateQuotePreview()"/></div>
+    <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="q-notes" placeholder="Optional notes for the client" oninput="updateQuotePreview()"/></div>
+    <div class="form-group"><label class="form-label">Preview</label><div class="quote-preview" id="q-preview"></div></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeQuoteModal()">Close</button>
+      <button class="btn" onclick="copyQuoteText()">Copy Text</button>
+      <button class="btn" onclick="draftQuoteEmail()">✉ Draft Email</button>
+      <button class="btn btn-primary" onclick="saveQuotation()">Save Quotation</button>
+    </div>
+  </div>
+</div>
+
+<!-- EMAIL PREVIEW MODAL -->
+<div class="modal-overlay" id="emailPreviewModal">
+  <div class="modal" style="width:580px;">
+    <div class="modal-title"><span id="ep-title">Preview Email</span><span class="modal-close" onclick="closeEmailPreview()">✕</span></div>
+    <div class="form-group"><label class="form-label">To</label><input class="form-input" id="ep-to" readonly/></div>
+    <div class="form-group"><label class="form-label">Subject</label><input class="form-input" id="ep-subject"/></div>
+    <div class="form-group"><label class="form-label">Message — you can edit before sending</label><textarea class="form-input" id="ep-body" rows="14" style="resize:vertical;font-family:'DM Sans',sans-serif;line-height:1.55;"></textarea></div>
+    <div id="ep-copy-note" style="font-size:11px;color:var(--teal);height:14px;margin-top:-6px;margin-bottom:6px;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEmailPreview()">Cancel</button>
+      <button class="btn" onclick="copyEmailPreviewText()">Copy Text</button>
+      <button class="btn btn-primary" onclick="sendEmailPreview()">✉ Open in Mail App</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIRTUAL OFFICE MODAL -->
+<div class="modal-overlay" id="virtualOfficeModal">
+  <div class="modal" style="width:620px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-title"><span id="vo-modal-title">New Virtual Office Client</span><span class="modal-close" onclick="closeVirtualOfficeModal()">✕</span></div>
+    <input type="hidden" id="vo-id"/>
+    <div class="invoice-section"><div class="invoice-section-title">Client Details</div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Contact Name</label><input class="form-input" id="vo-name"/></div><div class="form-group"><label class="form-label">Company / Organisation</label><input class="form-input" id="vo-company"/></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="vo-email" type="email"/></div><div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="vo-phone"/></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Office / Registered Address</label><textarea class="form-input" id="vo-address" rows="2"></textarea></div><div class="form-group"><label class="form-label">GSTIN / UIN</label><input class="form-input" id="vo-gstin"/></div></div>
+    </div>
+    <div class="invoice-section"><div class="invoice-section-title">Agreement &amp; Billing</div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Agreement Start Date</label><input class="form-input" id="vo-start" type="date" oninput="renderVoAgreementDates()"/><div class="section-note">Shown as <b id="vo-start-ddmmyyyy">DD/MM/YYYY</b></div></div><div class="form-group"><label class="form-label">Agreement End Date</label><input class="form-input" id="vo-end" type="date" oninput="renderVoAgreementDates()"/><div class="section-note">Shown as <b id="vo-end-ddmmyyyy">DD/MM/YYYY</b></div></div></div>
+      <div class="form-group"><label class="form-label">Yearly Base Fee (₹)</label><input class="form-input" id="vo-rent" type="number" min="0" oninput="renderVoRevenuePreview()"/></div>
+      <div class="form-group"><label class="form-label">Additional Amenities / Services (one per line: name | amount)</label><textarea class="form-input" id="vo-amenities" rows="4" placeholder="Mail handling | 1000\nMeeting room | 2000" oninput="renderVoRevenuePreview()"></textarea></div>
+      <div class="cabin-select-summary">
+        <div class="summary-chip">Monthly Revenue (Excl. GST): <b id="vo-monthly-excl-gst">₹0</b></div>
+        <div class="summary-chip">Monthly Revenue (Incl. GST): <b id="vo-monthly-incl-gst">₹0</b></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Documents <span style="color:var(--text3);">(Aadhaar, PAN, GST Certificate — PDF/JPG/JPEG/PNG)</span></label>
+      <div class="occ-doc-grid" id="vo-docs-grid"></div>
+      <input type="file" id="vo-doc-file-input" accept=".pdf,.jpg,.jpeg,.png,image/jpeg,image/png,application/pdf" style="display:none;" onchange="onVoDocFileChosen(event)"/>
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="closeVirtualOfficeModal()">Cancel</button><button class="btn btn-primary" onclick="saveVirtualOfficeClient()">Save Client</button></div>
+  </div>
+</div>
+
+<!-- USAGE & BOOKINGS MODAL -->
+<div class="modal-overlay" id="usageModal">
+  <div class="modal" style="width:620px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-title"><span id="usage-modal-title">New Booking</span><span class="modal-close" onclick="closeUsageModal()">✕</span></div>
+    <input type="hidden" id="ub-id"/>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Usage Type</label>
+        <select class="form-input" id="ub-type" onchange="onUsageTypeChange()">
+          <option>Day Pass</option>
+          <option>Conference Room Usage</option>
+          <option>Event Hall Usage</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Booking/Usage Status</label>
+        <select class="form-input" id="ub-status">
+          <option>Upcoming</option>
+          <option>Ongoing</option>
+          <option>Completed</option>
+          <option>Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Customer / Company Name</label><input class="form-input" id="ub-customer" placeholder="Customer or company name"/></div>
+      <div class="form-group"><label class="form-label">Contact Person</label><input class="form-input" id="ub-contact"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Mobile Number</label><input class="form-input" id="ub-mobile" placeholder="+91 XXXXX XXXXX"/></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="ub-email" type="email"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="ub-date" type="date"/></div>
+      <div class="form-group"><label class="form-label">Number of People</label><input class="form-input" id="ub-people" type="number" min="1" value="1"/></div>
+    </div>
+    <div class="form-row" id="ub-time-group">
+      <div class="form-group"><label class="form-label">Start Time</label><input class="form-input" id="ub-start" type="time"/></div>
+      <div class="form-group"><label class="form-label">End Time</label><input class="form-input" id="ub-end" type="time"/></div>
+    </div>
+    <div class="form-group" id="ub-space-group">
+      <label class="form-label" id="ub-space-label">Space Name</label>
+      <input class="form-input" id="ub-space" placeholder="e.g. Conference Room A / Grand Event Hall"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Amount (₹)</label><input class="form-input" id="ub-amount" type="number" min="0"/></div>
+      <div class="form-group"><label class="form-label">Payment Status</label>
+        <select class="form-input" id="ub-paystatus">
+          <option>Paid</option>
+          <option>Pending</option>
+          <option>Partially Paid</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="ub-paymethod-group" style="display:none;">
+      <label class="form-label">Payment Method</label>
+      <select class="form-input" id="ub-paymethod">
+        <option>Cash</option>
+        <option>UPI</option>
+        <option>Card</option>
+        <option>Bank Transfer</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="ub-notes" placeholder="Any additional notes"/></div>
+    <div id="ub-save-status" class="save-status" aria-live="polite"></div>
+    <div class="modal-actions" style="justify-content:space-between;">
+      <button class="btn btn-danger" id="ub-delete-btn" onclick="deleteUsageRecord(document.getElementById('ub-id').value); closeUsageModal();" style="display:none;">Delete Booking</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn" onclick="closeUsageModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUsageRecord()">Save Booking</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE EDIT MODAL -->
+<div class="modal-overlay" id="invoiceModal">
+  <div class="modal" style="width:780px;max-height:88vh;overflow-y:auto;">
+    <div class="modal-title"><span id="inv-modal-title">New Invoice</span><span class="modal-close" onclick="closeInvoiceModal()">✕</span></div>
+    <input type="hidden" id="inv-id"/>
+
+    <div class="invoice-builder-head"><strong>Invoice Builder</strong><span>Fill the client details, agreement reference and line items below. All amounts remain editable before saving.</span></div>
+    <div class="invoice-section"><div class="invoice-section-title">Invoice Details</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Invoice No.</label><input class="form-input" id="inv-no"/></div>
+      <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="inv-date" type="date"/></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Link to Occupant (auto-fills buyer &amp; agreement details)</label>
+      <select class="form-input" id="inv-occupant" onchange="fillInvoiceFromOccupant()"><option value="">— Custom / non-occupant customer —</option></select>
+    </div>
+
+    </div>
+    <div class="invoice-section"><div class="invoice-section-title">Buyer (Bill to)</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Buyer Name</label><input class="form-input" id="inv-buyer-name"/></div>
+      <div class="form-group"><label class="form-label">GSTIN/UIN</label><input class="form-input" id="inv-buyer-gst"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Address</label><textarea class="form-input" id="inv-buyer-addr" rows="2" style="resize:vertical;"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">State</label><input class="form-input" id="inv-buyer-state" value="Tamil Nadu"/></div>
+      <div class="form-group"><label class="form-label">Contact Person</label><input class="form-input" id="inv-buyer-contact"/></div>
+      <div class="form-group"><label class="form-label">Contact Phone</label><input class="form-input" id="inv-buyer-phone"/></div>
+    </div>
+
+    </div>
+    <div class="invoice-section"><div class="invoice-section-title">References</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Agreement Reference</label><input class="form-input" id="inv-agreement" placeholder="AGREEMENT DATED 01.06.26"/></div>
+      <div class="form-group"><label class="form-label">Mode/Term of Payment</label><input class="form-input" id="inv-payment-term" placeholder="e.g. Advance / Net 15"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Other References</label><input class="form-input" id="inv-other-ref"/></div>
+      <div class="form-group"><label class="form-label">Dispatched Through</label><input class="form-input" id="inv-dispatch"/></div>
+      <div class="form-group"><label class="form-label">Destination</label><input class="form-input" id="inv-destination"/></div>
+    </div>
+
+        </div>
+    <div class="invoice-section"><div class="invoice-section-title">Line Items <span style="font-weight:400;color:var(--text3);font-size:11.5px;">— set GST % to 0 on any item that's tax-exempt; it's then left out of the CGST/SGST calculation below</span></div>
+    <table class="data-table" style="min-width:0;">
+      <thead><tr><th style="width:32px;">#</th><th>Description</th><th style="width:80px;">HSN/SAC</th><th style="width:70px;">GST % <span title="0 = exempt, no tax charged on this line" style="cursor:help;">ⓘ</span></th><th style="width:90px;">Qty</th><th style="width:90px;">Rate</th><th style="width:60px;">Per</th><th style="width:100px;">Amount (₹)</th><th style="width:32px;"></th></tr></thead>
+      <tbody id="inv-items-body"></tbody>
+    </table>
+    <button class="btn btn-sm" style="margin-top:8px;" onclick="addInvoiceItemRow()">+ Add Line Item</button>
+
+    <div class="form-row" style="margin-top:14px;">
+      <div class="form-group"><label class="form-label">CGST % <span style="color:var(--text3);font-weight:400;">— applied to non-exempt items only</span></label><input class="form-input" id="inv-cgst-pct" type="number" value="9" oninput="recalcInvoiceTotals()"/></div>
+      <div class="form-group"><label class="form-label">SGST % <span style="color:var(--text3);font-weight:400;">— applied to non-exempt items only</span></label><input class="form-input" id="inv-sgst-pct" type="number" value="9" oninput="recalcInvoiceTotals()"/></div>
+    </div>
+    <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--text2);display:flex;gap:24px;flex-wrap:wrap;">
+      <span>Subtotal: <strong id="inv-calc-subtotal">₹0</strong></span>
+      <span>CGST: <strong id="inv-calc-cgst">₹0</strong></span>
+      <span>SGST: <strong id="inv-calc-sgst">₹0</strong></span>
+      <span>Total: <strong id="inv-calc-total" style="color:var(--gold);">₹0</strong></span>
+    </div>
+    <div class="form-group" style="margin-top:10px;"><label class="form-label">Notes (optional)</label><input class="form-input" id="inv-notes"/></div>
+
+    </div>
+    <div class="invoice-total-card"><div class="invoice-total-item"><span>Subtotal</span><strong id="inv-calc-subtotal-top">₹0</strong></div><div class="invoice-total-item"><span>CGST</span><strong id="inv-calc-cgst-top">₹0</strong></div><div class="invoice-total-item"><span>SGST</span><strong id="inv-calc-sgst-top">₹0</strong></div><div class="invoice-total-item"><span>Total</span><strong id="inv-calc-total-top">₹0</strong></div></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeInvoiceModal()">Cancel</button>
+      <button class="btn" onclick="saveInvoice('Draft')">Save as Draft</button>
+      <button class="btn btn-primary" onclick="saveInvoice(null, true)">Save &amp; Preview</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT EDIT MODAL -->
+<div class="modal-overlay" id="paymentEditModal">
+  <div class="modal" style="width:560px;">
+    <div class="modal-title"><span>Edit Payment</span><span class="modal-close" onclick="closePaymentEditModal()">✕</span></div>
+    <input type="hidden" id="pe-id"/>
+    <div id="pe-context" class="payment-edit-box"></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Base Amount Due (₹)</label><input class="form-input payment-amount-edit" id="pe-amount" type="number" min="0" oninput="renderPeTotal()"/></div><div class="form-group"><label class="form-label">Due Date</label><input class="form-input" id="pe-date" type="date"/></div></div>
+    <div class="form-group">
+      <label class="form-label">Amenities</label>
+      <div class="amenity-table">
+        <div class="amenity-table-head"><span>Amenity</span><span>Amount (₹)</span><span></span></div>
+        <div id="pe-amenities-rows"></div>
+      </div>
+      <button type="button" class="btn btn-sm" style="margin-top:8px;" onclick="addPeAmenityRow()">+ Add Amenity</button>
+    </div>
+    <div class="cabin-select-summary" style="margin-bottom:14px;">
+      <div class="summary-chip">Base: <b id="pe-total-base">₹0</b></div>
+      <div class="summary-chip">Amenities: <b id="pe-total-amenities">₹0</b></div>
+      <div class="summary-chip">Total Due: <b id="pe-total-all" style="color:var(--gold)">₹0</b></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-input" id="pe-notes" rows="3"></textarea></div>
+    <div id="pe-save-status" class="save-status" aria-live="polite"></div>
+    <div class="modal-actions"><button class="btn" onclick="closePaymentEditModal()">Cancel</button><button class="btn btn-primary" onclick="savePaymentEdit()">Save Payment</button></div>
+  </div>
+</div>
+
+<!-- RECORD PAYMENT MODAL -->
+<div class="modal-overlay" id="recordPaymentModal">
+  <div class="modal" style="width:460px;">
+    <div class="modal-title"><span>Record Payment Received</span><span class="modal-close" onclick="closeRecordPaymentModal()">✕</span></div>
+    <input type="hidden" id="rp-id"/>
+    <div id="rp-context" class="payment-edit-box"></div>
+    <div class="form-group"><label class="form-label">Amount Paid (₹)</label><input class="form-input" id="rp-amount" type="number" min="0"/></div>
+    <div class="form-group"><label class="form-label">Date Received</label><input class="form-input" id="rp-date" type="date"/></div>
+    <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="rp-tds" onchange="document.getElementById('rp-tds-amount-group').style.display=this.checked?'block':'none'" style="width:16px;height:16px;"/>
+      <label class="form-label" style="margin:0;" for="rp-tds">Client deducted TDS</label>
+    </div>
+    <div class="form-group" id="rp-tds-amount-group" style="display:none;"><label class="form-label">TDS Amount Deducted (₹)</label><input class="form-input" id="rp-tds-amount" type="number" min="0"/></div>
+    <div class="modal-actions"><button class="btn" onclick="closeRecordPaymentModal()">Cancel</button><button class="btn btn-primary" onclick="saveRecordPayment()">Save Payment</button></div>
+  </div>
+</div>
+
+<!-- AUTO-GENERATE INVOICES MODAL -->
+<div class="modal-overlay" id="autoGenModal">
+  <div class="modal" style="width:520px;">
+    <div class="modal-title"><span>Auto-Generate Monthly Invoices</span><span class="modal-close" onclick="closeAutoGenModal()">✕</span></div>
+    <p style="font-size:12.5px;color:var(--text3);margin-bottom:12px;line-height:1.6;">Creates one draft invoice per active occupant for the selected month — rent + car parking (if any) at 18% GST (9% CGST + 9% SGST), referencing each occupant's agreement start date. Occupants who already have an invoice for this month are skipped.</p>
+    <div class="form-group"><label class="form-label">Invoice month</label><input class="form-input" id="autogen-month" type="month" oninput="updateAutoGenPreview()"/></div>
+    <div id="autogen-preview" style="font-size:12px;color:var(--text2);margin:10px 0;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAutoGenModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="runAutoGenInvoices()">Generate Drafts</button>
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE PREVIEW MODAL -->
+<div class="modal-overlay" id="invoicePreviewModal">
+  <div class="modal" style="width:900px;max-height:92vh;overflow-y:auto;">
+    <div class="modal-title"><span>Invoice Preview</span><span class="modal-close" onclick="closeInvoicePreview()">✕</span></div>
+    <div id="invoice-preview-content" style="background:#ffffff;color:#111;border:1px solid #ccc;"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;">
+      <button class="btn" onclick="closeInvoicePreview()">Close</button>
+      <button class="btn" onclick="editInvoiceFromPreview()">✎ Edit</button>
+      <button class="btn" onclick="downloadInvoiceExcel(currentPreviewInvoiceId)">⬇ Excel</button>
+      <button class="btn" onclick="printInvoicePreview()">🖨 Print</button>
+      <button class="btn" onclick="downloadInvoicePDF(currentPreviewInvoiceId)">⬇ PDF</button>
+      <button class="btn btn-primary" onclick="draftInvoiceEmail(currentPreviewInvoiceId)">✉ Draft Email</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">Executive Dashboard</div>
+        <div class="topbar-sub" id="today-date"></div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge-alert" id="top-alert-badge" onclick="showPage('alerts',null)"></span>
+        <div class="notif-bell" onclick="showPage('alerts',null)">🔔<div class="notif-dot"></div></div>
+        <button class="btn btn-primary" onclick="showPage('add',null)">+ Add Occupant</button>
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card gold"><div class="metric-label">TOTAL SEATS</div><div class="metric-value gold" id="m-total">213</div><div class="metric-sub">Across 3 floors</div></div>
+      <div class="metric-card teal"><div class="metric-label">OCCUPIED</div><div class="metric-value teal" id="m-occupied">0</div>
+        <div class="metric-sub"><div class="progress-bar-wrap"><div class="progress-bar-track"><div class="progress-bar-fill" id="occ-bar" style="background:var(--teal);width:0%"></div></div></div></div>
+      </div>
+      <div class="metric-card coral"><div class="metric-label">VACANT</div><div class="metric-value coral" id="m-vacant">213</div><div class="metric-sub">Available now</div></div>
+      <div class="metric-card violet"><div class="metric-label">MONTHLY REVENUE</div><div class="metric-value violet" id="m-revenue">₹0</div><div class="metric-sub">Excl. GST</div></div>
+      <div class="metric-card gold"><div class="metric-label">TOTAL DEPOSIT</div><div class="metric-value gold" id="m-deposit">₹0</div><div class="metric-sub">Client security deposits</div></div>
+      <div class="metric-card violet"><div class="metric-label">CAR PARKING REVENUE</div><div class="metric-value violet" id="m-parking">₹0</div><div class="metric-sub">Active cars × ₹5,000 / month</div></div>
+      <div class="metric-card teal"><div class="metric-label">TOTAL ADVANCE</div><div class="metric-value teal" id="m-advance">₹0</div><div class="metric-sub">Advance received for seats</div></div>
+      <div class="metric-card green"><div class="metric-label">TOTAL CLIENT FUNDS</div><div class="metric-value green" id="m-client-funds">₹0</div><div class="metric-sub">Security + parking deposit + advance</div></div>
+      <div class="metric-card green"><div class="metric-label">EXPIRING SOON</div><div class="metric-value green" id="m-expiring">0</div><div class="metric-sub">Within 30 days</div></div>
+    </div>
+
+    <div class="grid-floors" id="floor-summary-cards"></div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Occupancy Overview <span class="card-title-icon">◈</span></div>
+        <div class="chart-wrap" style="height:220px"><canvas id="occChart" role="img" aria-label="Occupancy donut chart">Occupancy breakdown</canvas></div>
+        <div id="occ-legend" style="display:flex;gap:16px;margin-top:12px;justify-content:center;font-size:12px;flex-wrap:wrap;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Monthly Revenue Trend <span class="card-title-icon">◉</span></div>
+        <div class="chart-wrap" style="height:220px"><canvas id="revChart" role="img" aria-label="Monthly revenue trend">Revenue trend</canvas></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Virtual Office Revenue Trend <span class="card-title-icon">◉</span></div>
+        <div class="chart-wrap" style="height:220px"><canvas id="voRevChart" role="img" aria-label="Virtual office revenue trend">Virtual office revenue trend</canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Car Parking Revenue Trend <span class="card-title-icon">◉</span></div>
+        <div class="chart-wrap" style="height:220px"><canvas id="parkingRevChart" role="img" aria-label="Car parking revenue trend">Car parking revenue trend</canvas></div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card dash-quick-view-card">
+        <div class="card-title">Floor Quick View <span class="card-title-icon" style="color:var(--text3);font-size:11px;">All floors · hover a cabin for details</span></div>
+        <div id="dashboard-floor-quick-views" class="dashboard-floor-quick-views"></div>
+        <div class="ws-legend" style="margin-top:12px;justify-content:flex-start;">
+          <div style="display:flex;gap:16px;">
+            <div class="ws-legend-item"><div class="ws-legend-dot" style="background:var(--teal)"></div>Occupied</div>
+            <div class="ws-legend-item"><div class="ws-legend-dot" style="background:var(--bg3);border:1px solid var(--border2)"></div>Vacant</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Active Alerts <span class="card-title-icon">◉</span></div>
+        <div id="dash-alerts-list" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recent Occupants <span style="font-size:11px;color:var(--text3);font-weight:400;">Last 5 added</span></div>
+      <table class="data-table">
+        <thead><tr><th>Cabin(s)</th><th>Occupant</th><th>Company</th><th>Monthly Rent</th><th>End Date</th><th>Status</th></tr></thead>
+        <tbody id="recent-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SEATING & FLOORS -->
+  <div class="page" id="page-floors">
+    <div class="topbar">
+      <div><div class="topbar-title">Seating &amp; Floors</div><div class="topbar-sub">Cabin inventory is fully editable — add, resize or remove any cabin</div></div>
+      <div class="topbar-right"><input class="search-input" placeholder="Search cabin or occupant..." id="floor-search" oninput="renderFloorPage()"/></div>
+    </div>
+
+    <div class="tab-bar" id="floor-tabs"></div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Capacity Summary <span class="card-title-icon" id="floor-total-label"></span></div>
+      <div class="floor-chip-row" id="capacity-summary"></div>
+    </div>
+
+    <div class="card ws-grid-container" style="margin-bottom:16px;">
+      <div class="ws-header">
+        <div class="ws-filters" id="floor-filters"></div>
+        <button class="btn btn-primary" onclick="openAddCabin()">+ Add Cabin</button>
+      </div>
+      <div class="ws-grid" id="floor-ws-grid" style="grid-template-columns:repeat(10,1fr);"></div>
+      <div class="ws-legend" style="margin-top:14px;">
+        <div class="ws-legend-item"><div class="ws-legend-dot" style="background:var(--teal)"></div>Occupied</div>
+        <div class="ws-legend-item"><div class="ws-legend-dot" style="background:var(--bg3);border:1px solid var(--border2)"></div>Vacant</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Seating Details Table <span class="card-title-icon" id="seating-edit-hint" style="color:var(--text3);font-size:11px;">Click Edit Seats to change seat counts</span>
+        <button class="btn btn-sm" id="seating-edit-btn" style="margin-left:auto;" onclick="toggleSeatingEditMode()">✎ Edit Seats</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>S.No</th><th>Cabin Number</th><th>Seater</th><th>Occupied</th><th>Occupant</th><th>Action</th></tr></thead>
+        <tbody id="seating-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- OCCUPANTS -->
+  <div class="page" id="page-occupants">
+    <div class="topbar">
+      <div><div class="topbar-title">Occupants Registry</div><div class="topbar-sub">A clearer view of active leases, seats, rent and agreement dates</div></div>
+      <div class="topbar-right">
+        <input class="search-input" placeholder="Search name, company, cabin..." id="occ-search" oninput="renderOccupantsTable()"/>
+        <button class="btn btn-primary" onclick="showPage('add',null)">+ New Lease</button>
+      </div>
+    </div>
+    <div class="occ-summary-grid">
+      <div class="occ-summary-card"><div class="occ-summary-label">Active Occupants</div><div class="occ-summary-value" id="occ-summary-active">0</div><div class="occ-summary-sub">Current lease holders</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Seats Occupied</div><div class="occ-summary-value" id="occ-summary-seats">0</div><div class="occ-summary-sub">Based on actual allocations</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Monthly Revenue (Excl. GST)</div><div class="occ-summary-value" id="occ-summary-rent">₹0</div><div class="occ-summary-sub">Rent only, excluding parking</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Monthly Revenue (Incl. GST)</div><div class="occ-summary-value" id="occ-summary-rent-gst">₹0</div><div class="occ-summary-sub">Rent + 18% GST</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Total Deposit</div><div class="occ-summary-value" id="occ-summary-deposit">₹0</div><div class="occ-summary-sub">Security deposits only</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Car Parking Deposit</div><div class="occ-summary-value" id="occ-summary-parking-deposit">₹0</div><div class="occ-summary-sub">Separate parking deposits</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Total Advance</div><div class="occ-summary-value" id="occ-summary-advance">₹0</div><div class="occ-summary-sub">Advance received for seats</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Expiring Soon</div><div class="occ-summary-value" id="occ-summary-expiring">0</div><div class="occ-summary-sub">Within 30 days</div></div>
+    </div>
+    <div class="card occ-table-wrap">
+      <div class="card-title">Lease Directory <span class="section-note">Actual occupied seats can be less than cabin capacity.</span></div>
+      <table class="data-table occ-table">
+        <thead><tr><th>Space</th><th>Occupant</th><th>Company</th><th>Contact</th><th>Seats</th><th>Monthly Rent / Parking</th><th>Deposit</th><th>Advance</th><th>Agreement</th><th>Status</th><th>Docs</th><th>Action</th></tr></thead>
+        <tbody id="occ-body"></tbody>
+      </table>
+      <div id="occ-empty" class="empty-state" style="display:none">No occupants yet. Add a lease to get started.</div>
+    </div>
+  </div>
+
+  <!-- VACATED CLIENTS -->
+  <div class="page" id="page-vacated"><div class="topbar"><div><div class="topbar-title">Vacated Clients</div><div class="topbar-sub">Historical clients, fund settlement, deductions and refund tracking</div></div><div class="topbar-right"><input class="search-input" id="vac-search" placeholder="Search client, company, cabin..." oninput="renderVacatedClients()"/></div></div><div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)"><div class="metric-card blue"><div class="metric-label">VACATED CLIENTS</div><div class="metric-value blue" id="vac-count">0</div><div class="metric-sub">Historical records</div></div><div class="metric-card gold"><div class="metric-label">CLIENT FUNDS</div><div class="metric-value gold" id="vac-funds">₹0</div><div class="metric-sub">Deposit + advance</div></div><div class="metric-card coral"><div class="metric-label">DEDUCTIONS</div><div class="metric-value coral" id="vac-deductions">₹0</div><div class="metric-sub">Damage + unpaid rent</div></div><div class="metric-card teal"><div class="metric-label">REFUNDED / BALANCE</div><div class="metric-value teal" id="vac-refunded">₹0</div><div class="metric-sub">Final amount settled</div></div></div><div class="card occ-table-wrap"><div class="card-title">Vacated Client Register</div><table class="data-table occ-table vacated-table"><thead><tr><th>Client</th><th>Cabin(s)</th><th>Agreement</th><th>Vacated</th><th class="num-col">Deposit</th><th class="num-col">Parking Deposit</th><th class="num-col">Advance</th><th class="num-col">Damage</th><th class="num-col">Unpaid Rent</th><th class="num-col">Total Funds</th><th class="num-col">Deductions</th><th class="num-col">Final Refund</th></tr></thead><tbody id="vac-body"></tbody></table><div id="vac-empty" class="empty-state" style="display:none">No vacated clients yet. Use Vacate from the Occupants section.</div></div></div>
+
+  <!-- VIRTUAL OFFICE -->
+  <div class="page" id="page-virtualoffice">
+    <div class="topbar">
+      <div><div class="topbar-title">Virtual Office</div><div class="topbar-sub">Manage virtual-office customers separately from physical workspace occupants</div></div>
+      <div class="topbar-right"><input class="search-input" placeholder="Search virtual office..." id="vo-search" oninput="renderVirtualOffice()"/><button class="btn btn-primary" onclick="openVirtualOfficeModal()">+ Add Virtual Office</button></div>
+    </div>
+    <div class="occ-summary-grid vo-summary-grid">
+      <div class="occ-summary-card"><div class="occ-summary-label">Active Clients</div><div class="occ-summary-value" id="vo-summary-active">0</div><div class="occ-summary-sub">Virtual-office agreements</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Yearly Billing</div><div class="occ-summary-value" id="vo-summary-rent">₹0</div><div class="occ-summary-sub">Base fee + amenities</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Monthly Revenue (Excl. GST)</div><div class="occ-summary-value" id="vo-summary-monthly-excl-gst">₹0</div><div class="occ-summary-sub">Yearly billing ÷ 12</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Monthly Revenue (Incl. GST)</div><div class="occ-summary-value" id="vo-summary-monthly-incl-gst">₹0</div><div class="occ-summary-sub">+ 18% GST</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Renewals Soon</div><div class="occ-summary-value" id="vo-summary-expiring">0</div><div class="occ-summary-sub">Within 30 days</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Total Clients</div><div class="occ-summary-value" id="vo-summary-total">0</div><div class="occ-summary-sub">All records</div></div>
+    </div>
+    <div class="virtual-grid" id="virtual-office-grid"></div>
+    <div id="virtual-office-empty" class="empty-state" style="display:none">No virtual-office clients yet.</div>
+  </div>
+
+  <!-- USAGE & BOOKINGS -->
+  <div class="page" id="page-usage">
+    <div class="topbar">
+      <div><div class="topbar-title">Usage &amp; Bookings</div><div class="topbar-sub">Day passes, conference room and event hall usage — independent of regular clients &amp; occupants</div></div>
+      <div class="topbar-right">
+        <input class="search-input" placeholder="Search customer, contact, space..." id="usage-search" oninput="renderUsagePage()"/>
+        <select class="form-input" id="usage-type-filter" style="max-width:190px;" onchange="renderUsagePage()">
+          <option value="all">All usage types</option>
+          <option>Day Pass</option>
+          <option>Conference Room Usage</option>
+          <option>Event Hall Usage</option>
+        </select>
+        <button class="btn btn-primary" onclick="openUsageModal()">+ Add Booking</button>
+      </div>
+    </div>
+
+    <div class="occ-summary-grid vo-summary-grid">
+      <div class="occ-summary-card"><div class="occ-summary-label">Today's Bookings</div><div class="occ-summary-value" id="ub-sum-today">0</div><div class="occ-summary-sub">Scheduled for today</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Upcoming Bookings</div><div class="occ-summary-value" id="ub-sum-upcoming">0</div><div class="occ-summary-sub">Not yet started</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Completed Usage</div><div class="occ-summary-value" id="ub-sum-completed">0</div><div class="occ-summary-sub">Finished bookings</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Pending Payments</div><div class="occ-summary-value" id="ub-sum-pending">0</div><div class="occ-summary-sub">Not fully paid</div></div>
+      <div class="occ-summary-card"><div class="occ-summary-label">Total Revenue</div><div class="occ-summary-value" id="ub-sum-revenue">₹0</div><div class="occ-summary-sub">Excludes cancelled</div></div>
+    </div>
+
+    <div class="card occ-table-wrap">
+      <div class="card-title">Usage Records</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table occ-table">
+          <thead><tr><th>Date</th><th>Usage Type</th><th>Customer/Company</th><th>Space</th><th>Time</th><th>People</th><th>Amount</th><th>Payment Status</th><th>Booking Status</th><th>Actions</th></tr></thead>
+          <tbody id="usage-body"></tbody>
+        </table>
+      </div>
+      <div id="usage-empty" class="empty-state" style="display:none">No usage/booking records yet. Use + Add Booking to create a Day Pass, Conference Room or Event Hall booking.</div>
+    </div>
+  </div>
+
+  <!-- PAYMENTS -->
+  <div class="page" id="page-payments">
+    <div class="topbar">
+      <div><div class="topbar-title">Payments &amp; Reminders</div><div class="topbar-sub">Monthly rent ledger, due tracking &amp; reminder emails</div></div>
+      <div class="topbar-right"><input class="search-input" placeholder="Search occupant..." id="pay-search" oninput="renderPaymentsPage()"/></div>
+    </div>
+
+    <div class="mail-note">
+      <strong>About reminder emails:</strong> this dashboard runs entirely in your browser and has no mail server, so it can't send email on its own. "Draft Reminder" opens a preview you can edit before it hands off to your default mail app (or you can copy the text) — you press send.
+    </div>
+
+    <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric-card teal"><div class="metric-label">PAID THIS MONTH</div><div class="metric-value teal" id="pm-paid">₹0</div><div class="metric-sub" id="pm-paid-sub">0 invoices</div></div>
+      <div class="metric-card amber"><div class="metric-label">DUE (WITHIN GRACE)</div><div class="metric-value" style="color:var(--amber)" id="pm-due">₹0</div><div class="metric-sub" id="pm-due-sub">0 invoices</div></div>
+      <div class="metric-card coral"><div class="metric-label">OVERDUE</div><div class="metric-value coral" id="pm-overdue">₹0</div><div class="metric-sub" id="pm-overdue-sub">0 invoices</div></div>
+      <div class="metric-card violet"><div class="metric-label">COLLECTION RATE</div><div class="metric-value violet" id="pm-rate">0%</div><div class="metric-sub">Paid vs total due (all-time)</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Outstanding Payments Report <span class="card-title-icon" style="font-size:11px;color:var(--text3);font-weight:400;">Grouped by occupant, for review &amp; follow-up</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div id="outstanding-summary" style="font-size:12.5px;color:var(--text2);"></div>
+        <button class="btn btn-sm" onclick="exportOutstandingCSV()">⬇ Export CSV (all pending, with due dates)</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Occupant</th><th>Cabin(s)</th><th>Contact</th><th>Months Outstanding</th><th>Total Outstanding</th><th>Oldest Due</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="outstanding-body"></tbody>
+      </table>
+      <div id="outstanding-empty" class="empty-state" style="display:none">No outstanding payments — everyone's paid up 🎉</div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab active" onclick="payTab('all',this)">All</div>
+      <div class="tab" onclick="payTab('due',this)">Due</div>
+      <div class="tab" onclick="payTab('overdue',this)">Overdue</div>
+      <div class="tab" onclick="payTab('paid',this)">Paid</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Payment Ledger <span class="card-title-icon" style="font-size:11px;color:var(--text3);font-weight:400;">Individual monthly invoices</span></div>
+      <table class="data-table">
+        <thead><tr><th>Occupant</th><th>Cabin(s)</th><th>Month</th><th>Amount Due</th><th>Due Date</th><th>Status</th><th>Reminder</th><th>Action</th></tr></thead>
+        <tbody id="payments-body"></tbody>
+      </table>
+      <div id="payments-empty" class="empty-state" style="display:none">No payment records match this view.</div>
+    </div>
+  </div>
+
+  <!-- INVOICES -->
+  <div class="page" id="page-invoices">
+    <div class="topbar">
+      <div><div class="topbar-title">Invoices</div><div class="topbar-sub">Generate, track and send GST tax invoices — linked to occupant agreements</div></div>
+      <div class="topbar-right">
+        <input class="search-input" placeholder="Search invoice no. / customer..." id="inv-search" oninput="renderInvoicesPage()"/>
+        <button class="btn" onclick="openAutoGenModal()">⚙ Auto-Generate Monthly</button>
+        <button class="btn" onclick="showPage('datasync',null)" title="Bring in existing invoices from an Excel sheet">⬆ Import Invoices</button>
+        <button class="btn btn-primary" onclick="openInvoiceModal(null)">+ New Invoice</button>
+      </div>
+    </div>
+
+    <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric-card blue"><div class="metric-label">TOTAL INVOICED</div><div class="metric-value" style="color:var(--blue)" id="inv-total">₹0</div><div class="metric-sub" id="inv-total-sub">0 invoices</div></div>
+      <div class="metric-card amber"><div class="metric-label">PAYMENT PENDING</div><div class="metric-value" style="color:var(--amber)" id="inv-pending">₹0</div><div class="metric-sub" id="inv-pending-sub">0 invoices</div></div>
+      <div class="metric-card teal"><div class="metric-label">PAYMENT RECEIVED</div><div class="metric-value teal" id="inv-received">₹0</div><div class="metric-sub" id="inv-received-sub">0 invoices</div></div>
+      <div class="metric-card violet"><div class="metric-label">DRAFTS</div><div class="metric-value violet" id="inv-drafts">0</div><div class="metric-sub">Not yet sent to customer</div></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab active" onclick="invTab('all',this)">All</div>
+      <div class="tab" onclick="invTab('draft',this)">Draft</div>
+      <div class="tab" onclick="invTab('sent',this)">Sent</div>
+      <div class="tab" onclick="invTab('pending',this)">Payment Pending</div>
+      <div class="tab" onclick="invTab('received',this)">Payment Received</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Invoice Register <span class="card-title-icon" style="font-size:11px;color:var(--text3);font-weight:400;">Preview, edit, download or email each invoice</span></div>
+      <table class="data-table">
+        <thead><tr><th>Invoice No.</th><th>Date</th><th>Customer</th><th>Agreement Ref.</th><th>Subtotal</th><th>Total</th><th>Status</th><th>Payment</th><th>Actions</th></tr></thead>
+        <tbody id="invoices-body"></tbody>
+      </table>
+      <div id="invoices-empty" class="empty-state" style="display:none">No invoices yet — create one manually or auto-generate from active occupants.</div>
+    </div>
+  </div>
+
+  <!-- REVENUE -->
+  <div class="page" id="page-revenue">
+    <div class="topbar"><div><div class="topbar-title">Revenue Tracker</div><div class="topbar-sub">Monthly rental income — INR excl. GST</div></div>
+      <div class="topbar-right"><button class="btn btn-primary" onclick="exportRevenueReport()">⬇ Download Full Revenue Report (.xlsx)</button></div>
+    </div>
+    <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric-card gold"><div class="metric-label">CURRENT MONTHLY</div><div class="metric-value gold" id="rv-monthly">₹0</div><div class="metric-sub">Active + expiring leases</div></div>
+      <div class="metric-card teal"><div class="metric-label">ANNUAL PROJECTED</div><div class="metric-value teal" id="rv-annual">₹0</div><div class="metric-sub">At current occupancy</div></div>
+      <div class="metric-card violet"><div class="metric-label">PARKING REVENUE</div><div class="metric-value violet" id="rv-parking">₹0</div><div class="metric-sub">Cars × ₹5,000/mo + GST</div></div>
+      <div class="metric-card coral"><div class="metric-label">POTENTIAL (FULL)</div><div class="metric-value coral" id="rv-potential">₹0</div><div class="metric-sub" id="rv-potential-sub">213 seats × ₹8,000</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">Revenue by Tenant <span class="card-title-icon">◈</span></div><div id="rev-by-tenant"></div></div>
+      <div class="card"><div class="card-title">Monthly Breakdown <span class="card-title-icon">◉</span></div><div class="chart-wrap" style="height:280px;"><canvas id="revBreakChart" role="img" aria-label="Revenue breakdown chart">Revenue breakdown</canvas></div></div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Payment Schedule</div>
+      <table class="data-table">
+        <thead><tr><th>Occupant</th><th>Cabin(s)</th><th>Monthly Rent</th><th>Parking</th><th>Total</th><th>Due Date</th><th>Reminder</th></tr></thead>
+        <tbody id="pay-body"></tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Tariff Reference — as per COLLABOR8 Agreement Schedule B</div>
+      <div class="agreement-terms">
+        <div class="term"><strong>Monthly Fee</strong>₹8,000 + GST per seat / month (default reference rate — individual occupant rent is editable)</div>
+        <div class="term"><strong>Escalation</strong>10% after 11 months, at renewal</div>
+        <div class="term"><strong>Security Deposit</strong>3 months' fee (refundable, no interest)</div>
+        <div class="term"><strong>Advance Fee</strong>1 month's fee (adjustable on exit)</div>
+        <div class="term"><strong>Lock-in Period</strong>11 months from agreement date</div>
+        <div class="term"><strong>Notice Period</strong>3 months before completion of lock-in</div>
+        <div class="term"><strong>Car Parking</strong>₹5,000 + GST / car / month (first-come-first-served)</div>
+        <div class="term"><strong>Bike Parking</strong>Free, first-come-first-served</div>
+        <div class="term"><strong>Conference Room</strong>3 hrs/month free for 5-seater cabins &amp; above</div>
+        <div class="term"><strong>Working Hours</strong>Mon–Sat 9:00 AM–7:00 PM · 2nd Sat &amp; Sun holiday</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERTS -->
+  <div class="page" id="page-alerts">
+    <div class="topbar"><div><div class="topbar-title">Alerts &amp; Reminders</div><div class="topbar-sub">Expiry notices, renewal reminders, overdue rentals</div></div></div>
+    <div class="tab-bar">
+      <div class="tab active" onclick="alertTab('all',this)">All</div>
+      <div class="tab" onclick="alertTab('urgent',this)">Urgent</div>
+      <div class="tab" onclick="alertTab('warning',this)">Expiring</div>
+      <div class="tab" onclick="alertTab('info',this)">Reminders</div>
+    </div>
+    <div id="alerts-container"><div class="empty-state">No alerts right now.</div></div>
+  </div>
+
+  <!-- DOCUMENTS -->
+  <div class="page" id="page-documents">
+    <div class="topbar">
+      <div><div class="topbar-title">Document Repository</div><div class="topbar-sub">Agreement templates &amp; signed leases — stored locally in this browser</div></div>
+      <div class="topbar-right"><input class="search-input" placeholder="Search documents..." id="doc-search" oninput="renderDocuments()"/></div>
+    </div>
+
+    <div class="upload-zone">
+      <div style="margin-bottom:10px;font-weight:600;color:var(--text2);">Upload a document to the repository</div>
+      <div class="form-row" style="max-width:640px;margin:0 auto 10px;text-align:left;">
+        <div class="form-group" style="margin-bottom:0;"><label class="form-label">Category</label>
+          <select class="form-input" id="doc-cat"><option>Signed Agreement</option><option>KYC</option><option>Template</option><option>Other</option></select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;"><label class="form-label">Link to Occupant (optional)</label>
+          <select class="form-input" id="doc-link-occ"><option value="">— None —</option></select>
+        </div>
+      </div>
+      <input type="file" id="doc-file-input" style="margin:6px auto;" onchange="handleDocUpload(event)"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;">Files are converted to Base64 and saved in this browser's local storage. Nothing leaves the device.</div>
+      <div class="storage-meter" id="storage-meter"></div>
+      <div class="storage-track"><div class="storage-fill" id="storage-fill" style="width:0%"></div></div>
+    </div>
+
+    <div class="doc-toolbar">
+      <div class="doc-filters" id="doc-filters"></div>
+      <span style="font-size:12px;color:var(--text3);" id="doc-count-label"></span>
+    </div>
+    <div class="doc-grid" id="doc-grid"></div>
+    <div id="doc-empty" class="empty-state" style="display:none">No documents in this category.</div>
+  </div>
+
+  <!-- SALES PIPELINE -->
+  <div class="page" id="page-sales">
+    <div class="topbar">
+      <div><div class="topbar-title">Sales Pipeline</div><div class="topbar-sub">Leads, cold calls, social media &amp; follow-up tracking</div></div>
+      <div class="topbar-right">
+        <input type="file" id="lead-import-xlsx-file" accept=".xlsx,.xls" style="display:none;" onchange="importLeadsExcelFile(this)"/>
+        <button class="btn" onclick="document.getElementById('lead-import-xlsx-file').click()">⬆ Import Leads Excel</button>
+        <button class="btn" onclick="downloadLeadExcelTemplate()">⬇ Lead Template</button>
+        <button class="btn btn-primary" onclick="openLeadModal()">+ New Lead</button>
+      </div>
+    </div>
+    <div id="lead-import-result" style="font-size:12px;margin-bottom:10px;"></div>
+
+    <div class="metrics-grid" style="grid-template-columns:repeat(5,1fr)">
+      <div class="metric-card gold"><div class="metric-label">TOTAL LEADS</div><div class="metric-value gold" id="sl-total">0</div><div class="metric-sub">All sources</div></div>
+      <div class="metric-card teal"><div class="metric-label">CONVERTED</div><div class="metric-value teal" id="sl-converted">0</div><div class="metric-sub" id="sl-convrate">0% conversion</div></div>
+      <div class="metric-card amber"><div class="metric-label">OPEN FOLLOW-UPS</div><div class="metric-value" style="color:var(--amber)" id="sl-followups">0</div><div class="metric-sub">Due today or overdue</div></div>
+      <div class="metric-card violet"><div class="metric-label">PIPELINE VALUE</div><div class="metric-value violet" id="sl-value">₹0</div><div class="metric-sub">Open leads, est. monthly</div></div>
+      <div class="metric-card coral"><div class="metric-label">QUOTATIONS SENT</div><div class="metric-value coral" id="sl-quotes">0</div><div class="metric-sub">All time</div></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab active" onclick="salesTab('pipeline',this)">Pipeline</div>
+      <div class="tab" onclick="salesTab('leads',this)">All Leads</div>
+      <div class="tab" onclick="salesTab('followups',this)">Follow-ups</div>
+      <div class="tab" onclick="salesTab('quotations',this)">Quotations</div>
+      <div class="tab" onclick="salesTab('sources',this)">Sources</div>
+    </div>
+
+    <div id="sales-tab-pipeline">
+      <div class="kanban-board" id="kanban-board"></div>
+    </div>
+
+    <div id="sales-tab-leads" style="display:none;">
+      <div class="ws-header">
+        <div class="ws-filters" id="lead-source-filters"></div>
+        <input class="search-input" placeholder="Search leads..." id="lead-search" oninput="renderLeadsTable()"/>
+      </div>
+      <div class="card">
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Company</th><th>Source</th><th>Stage</th><th>Seats</th><th>Next Follow-up</th><th>Action</th></tr></thead>
+          <tbody id="leads-body"></tbody>
+        </table>
+        <div id="leads-empty" class="empty-state" style="display:none">No leads yet — add your first cold call or social media lead.</div>
+      </div>
+    </div>
+
+    <div id="sales-tab-followups" style="display:none;">
+      <div class="card">
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Company</th><th>Stage</th><th>Next Follow-up</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="followups-body"></tbody>
+        </table>
+        <div id="followups-empty" class="empty-state" style="display:none">No follow-ups scheduled.</div>
+      </div>
+    </div>
+
+    <div id="sales-tab-quotations" style="display:none;">
+      <div class="ws-header"><div></div><button class="btn btn-primary" onclick="openQuoteModal()">+ New Quotation</button></div>
+      <div class="doc-grid" id="quotes-grid"></div>
+      <div id="quotes-empty" class="empty-state" style="display:none">No quotations created yet.</div>
+    </div>
+
+    <div id="sales-tab-sources" style="display:none;">
+      <div class="card">
+        <div class="card-title">Lead Source Performance <span class="card-title-icon">◈</span></div>
+        <table class="data-table">
+          <thead><tr><th>Source</th><th style="text-align:center;">Total Leads</th><th style="text-align:center;">Converted</th><th style="text-align:center;">Conversion %</th></tr></thead>
+          <tbody id="source-analytics-body"></tbody>
+        </table>
+        <div id="source-analytics-empty" class="empty-state" style="display:none">No leads yet — source analytics will appear once leads are added.</div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">Agencies <span class="card-title-icon" style="color:var(--text3);font-size:11px;">Leads routed through agency partners</span></div>
+        <table class="data-table">
+          <thead><tr><th>Agency Name</th><th style="text-align:center;">Total Leads</th><th style="text-align:center;">Converted</th></tr></thead>
+          <tbody id="agency-analytics-body"></tbody>
+        </table>
+        <div id="agency-analytics-empty" class="empty-state" style="display:none">No agency-sourced leads yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD OCCUPANT -->
+  <div class="page" id="page-add">
+    <div class="topbar"><div><div class="topbar-title">Add New Occupant</div><div class="topbar-sub">Register a new cabin lease</div></div></div>
+    <div style="max-width:680px;">
+      <div class="card">
+        <div class="card-title">1. Select Cabins <span class="card-title-icon" style="color:var(--text3);font-size:11px;">Click a card to select</span></div>
+        <div class="cabin-toolbar">
+          <input class="search-input" id="a-cabin-search" placeholder="Search cabin ID..." oninput="renderAddCabinChoices()"/>
+          <button class="filter-btn active" data-floor="all" onclick="setAddFloorFilter('all')">All Floors</button>
+          <button class="filter-btn" data-floor="First Floor" onclick="setAddFloorFilter('First Floor')">First Floor</button>
+          <button class="filter-btn" data-floor="Second Floor" onclick="setAddFloorFilter('Second Floor')">Second Floor</button>
+          <button class="filter-btn" data-floor="Third Floor" onclick="setAddFloorFilter('Third Floor')">Third Floor</button>
+          <button class="filter-btn avail-toggle active" id="a-avail-toggle" onclick="toggleAddAvailOnly()">🟢 Available only</button>
+        </div>
+        <div class="cabin-card-grid" id="a-cabin-grid"></div>
+        <div class="cabin-select-summary">
+          <div class="summary-chip">Selected cabins: <b id="a-sum-count">0</b></div>
+          <div class="summary-chip">Total seats: <b id="a-sum-seats">0</b></div>
+          <div class="summary-chip">Total monthly rent: <b id="a-sum-rent">₹0</b></div>
+        </div>
+        <div id="a-seat-allocation" class="seat-allocation-list"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">2. Occupant Details</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Occupant Name</label><input class="form-input" id="f2-name" placeholder="Full name"/></div>
+          <div class="form-group"><label class="form-label">Company / Organisation</label><input class="form-input" id="f2-company" placeholder="Company name"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="f2-email" type="email" placeholder="email@company.com"/></div>
+          <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="f2-phone" placeholder="+91 XXXXX XXXXX"/></div>
+        </div>
+        <div class="form-group"><label class="form-label">Billing Address <span style="color:var(--text3);font-weight:400;">— used to auto-fill invoices</span></label><textarea class="form-input" id="f2-address" rows="2" style="resize:vertical;" placeholder="Address to print on invoices"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Agreement Start Date</label><input class="form-input" id="f2-start" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10" onchange="autofillEnd()"/><div class="section-note">Enter as DD/MM/YYYY, e.g. 01/07/2026</div></div>
+          <div class="form-group"><label class="form-label">Agreement End Date (11-month lock-in)</label><input class="form-input" id="f2-end" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10"/><div class="section-note">Enter as DD/MM/YYYY</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">3. Tariff <span class="card-title-icon" style="color:var(--text3);font-size:11px;">Default reference: ₹8,000 + GST / seat — rent below is editable</span></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Monthly Rent (₹, ex-GST) <span style="color:var(--gold);">— editable</span></label><input class="form-input" id="f2-rent" type="number" oninput="onManualRentChange()"/></div>
+          <div class="form-group"><label class="form-label">Security Deposit (3 mo, ₹) <span style="color:var(--gold);">— editable</span></label><input class="form-input" id="f2-deposit" type="number" min="0" oninput="onManualDepositChange()"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Advance Fee (1 mo, ₹) <span style="color:var(--gold);">— editable</span></label><input class="form-input" id="f2-advance" type="number" min="0" oninput="onManualAdvanceChange()"/></div>
+          <div class="form-group"><label class="form-label">Escalation</label><input class="form-input" value="10% after 11 months" readonly/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Car Parking Slots</label><input class="form-input" id="f2-parking" type="number" value="0" min="0" oninput="recalcTariff()"/></div>
+          <div class="form-group"><label class="form-label">Car Parking Revenue / Month (₹)</label><input class="form-input" id="f2-parking-revenue" type="number" min="0" value="0" oninput="onManualParkingRevenueChange()"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Car Parking Deposit (₹)</label><input class="form-input" id="f2-parking-deposit" type="number" min="0" value="0"/></div>
+          <div class="form-group"><label class="form-label">Attach Signed Agreement (optional)</label><input class="form-input" id="f2-doc" type="file"/></div>
+        </div>
+        <div style="margin-top:4px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm);font-size:12px;color:var(--text3);">
+          ℹ️ Lock-in: 11 months. Notice period: 3 months before lock-in ends. Conference room: 3 hrs/month free for 5-seater cabins &amp; above. AC / working hours: Mon–Sat 9AM–7PM (2nd Sat &amp; Sun holiday).
+        </div>
+        <div class="modal-actions" style="margin-top:16px;"><button class="btn btn-primary" onclick="saveFromPage()">✓ Register Lease</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXCEL DATA SYNC -->
+  <div class="page" id="page-datasync">
+    <div class="topbar">
+      <div><div class="topbar-title">Excel Data Sync</div><div class="topbar-sub">Keep an offline Excel workbook in sync with this dashboard's data</div></div>
+    </div>
+
+    <div class="mail-note">
+      <strong>How this works:</strong> everything in this dashboard lives in your browser only. Use <strong style="color:var(--gold)">Export</strong> to save a full Excel workbook you can archive, edit offline, or hand to your accountant. Use <strong style="color:var(--gold)">Import</strong> to bring a workbook back in — matching rows (by ID) are updated, new rows are added. Always keep a backup copy before importing.
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Export to Excel <span class="card-title-icon">⬇</span></div>
+        <p style="font-size:12.5px;color:var(--text3);margin-bottom:14px;line-height:1.6;">Downloads one <code>.xlsx</code> workbook with separate sheets for Occupants, Cabins, Payments, Sales Leads and Invoices — the full dataset behind this dashboard.</p>
+        <button class="btn btn-primary" onclick="exportFullWorkbook()">⬇ Export Full Workbook (.xlsx)</button>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+          <p style="font-size:12.5px;color:var(--text3);margin-bottom:10px;line-height:1.6;">Just need the pending-payments list? Head to <strong style="color:var(--text2);">Payments</strong> for a CSV export of every due/overdue invoice with due dates and payment links.</p>
+          <button class="btn" onclick="showPage('payments',null)">Go to Payments Report →</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Import from Excel <span class="card-title-icon">⬆</span></div>
+        <p style="font-size:12.5px;color:var(--text3);margin-bottom:14px;line-height:1.6;">Upload a workbook exported from this dashboard (or built to match its column layout). Rows are matched by their <code>id</code> column — existing records get updated, unmatched rows are added as new.</p>
+        <div class="upload-zone" style="margin-bottom:12px;">
+          <input type="file" id="import-xlsx-file" accept=".xlsx,.xls" style="font-size:12px;"/>
+        </div>
+        <button class="btn btn-primary" onclick="importWorkbookFile()">⬆ Import &amp; Merge</button>
+        <div id="import-result" style="margin-top:12px;font-size:12px;color:var(--teal);"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Workbook Sheet Reference</div>
+      <div class="agreement-terms">
+        <div class="term"><strong>Occupants</strong>id, name, company, email, phone, address, cabins, seatAllocationsJson, start, end, rent, deposit, advance, parking, escalation, upiId, reminderSent</div>
+        <div class="term"><strong>Cabins</strong>id, floor, seater, sno, occupied, occupantId, occupantName, note</div>
+        <div class="term"><strong>Payments</strong>id, occupantId, month, amountDue, baseAmount, amenitiesJson, dueDate, paidDate, reminderSent, reminderDraftedAt, notes</div>
+        <div class="term"><strong>Leads</strong>id, name, company, phone, email, source, agencyName, stage, seats, notes, created, nextFollowUp, activitiesJson</div>
+        <div class="term"><strong>Invoices</strong>id, invoiceNo, date, occupantId, buyerName, buyerAddr, buyerGstin, buyerState, buyerContactPerson, buyerContactPhone, agreementRef, paymentTerm, otherRef, dispatchedThrough, destination, itemDesc, itemHsn, itemGstRate, itemQty, itemRate, itemPer, itemAmount, itemsJson, cgstPct, sgstPct, notes, status, paymentStatus, createdAt, sentAt, receivedAt, periodMonth</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:12px;">Tip: add an optional <code>upiId</code> value on any Occupants row to give that tenant their own collection UPI ID — reminder emails use it instead of the dashboard-wide default automatically.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;">Tip: for Invoices, leave <code>id</code> blank on new rows so they're added rather than merged. For a simple single-line invoice you only need <code>invoiceNo, date, buyerName, itemDesc, itemAmount</code> — leave <code>itemGstRate</code> blank to default to 18%, or set it to <code>0</code> for a tax-exempt line. Only fill in <code>itemsJson</code> if an invoice has more than one line item (it's a JSON array and overrides the flat item* columns when present).</div>
+    </div>
+  </div>
+
+  <!-- PHASE 7 OPERATIONS -->
+  <div class="page" id="page-maintenance"><div class="topbar"><div><div class="topbar-title">Maintenance & Helpdesk</div><div class="topbar-sub">Track issues, assignments, priorities and resolution history</div></div><div class="topbar-right"><button class="btn btn-primary" onclick="addMaintenance()">+ New Ticket</button></div></div><div id="maintenance-content"></div></div>
+  <div class="page" id="page-inventory"><div class="topbar"><div><div class="topbar-title">Inventory & Assets</div><div class="topbar-sub">Track furniture, equipment, consumables and asset ownership</div></div><div class="topbar-right"><button class="btn btn-primary" onclick="addInventory()">+ Add Asset</button></div></div><div id="inventory-content"></div></div>
+  <div class="page" id="page-vendors"><div class="topbar"><div><div class="topbar-title">Vendors</div><div class="topbar-sub">Vendor directory and service contacts</div></div><div class="topbar-right"><button class="btn btn-primary" onclick="addVendor()">+ Add Vendor</button></div></div><div id="vendors-content"></div></div>
+  <div class="page" id="page-expenses"><div class="topbar"><div><div class="topbar-title">Expenses</div><div class="topbar-sub">Record operating expenses and vendor bills</div></div><div class="topbar-right"><button class="btn btn-primary" onclick="addExpense()">+ Record Expense</button></div></div><div id="expenses-content"></div></div>
+  <div class="page" id="page-automation"><div class="topbar"><div><div class="topbar-title">Automation & Integrations</div><div class="topbar-sub">Configure reminders, email, WhatsApp and payment integrations</div></div></div><div id="automation-content"></div></div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="topbar"><div><div class="topbar-title">Settings</div><div class="topbar-sub">Workspace preferences and system configuration</div></div></div>
+    <div id="settings-content"></div>
+  </div>
+
+  <!-- REPORTS -->
+  <div class="page" id="page-reports"><div class="topbar"><div><div class="topbar-title">Reports &amp; Analytics</div><div class="topbar-sub">Live metrics calculated from stored records</div></div></div><div id="reports-content"></div></div>
+
+  <!-- USERS -->
+  <div class="page" id="page-users"><div class="topbar"><div><div class="topbar-title">Users &amp; Roles</div><div class="topbar-sub">Admin-controlled access to Collabor8</div></div></div><div id="users-content"></div></div>
+
+  <!-- AUDIT LOGS -->
+  <div class="page" id="page-audit">
+    <div class="topbar"><div><div class="topbar-title">Audit Logs</div><div class="topbar-sub">Administrative record of important system actions</div></div></div>
+    <div id="audit-content"></div>
+  </div>
+</main>
+
+<link rel="manifest" href="manifest.webmanifest">
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}</script>
+<script src="app.js"></script>
+</body>
+</html>
