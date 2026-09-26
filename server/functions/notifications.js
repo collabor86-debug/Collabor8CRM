@@ -1,10 +1,10 @@
 import {response,fail} from './_google.js';
-import {readSession, isOwner} from './_session.js';
+import {readSession, isOwner, requestOriginAllowed} from './_session.js';
 const auth=e=>readSession(e.headers?.cookie||e.headers?.Cookie);
 const env=n=>process.env[n]||'';
 function body(e){try{return JSON.parse(e.body||'{}')}catch{return null}}
 export async function handler(event){
- const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');
+ const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');if(event.httpMethod!=='GET'&&!requestOriginAllowed(event))return fail(403,'FORBIDDEN','Cross-origin request blocked.');
  if(isOwner(user))return fail(403,'FORBIDDEN','Owner accounts are read-only.');
  if(event.httpMethod!=='POST')return fail(405,'METHOD_NOT_ALLOWED','POST required.');
  const b=body(event)||{};const channel=b.channel;

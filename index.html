@@ -6,9 +6,9 @@
 <title>COLLABOR8 — Co-Working Space Management</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.1.0/jspdf.umd.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,10 +27,7 @@
   </div>
 </div>
 
- <div id="idle-countdown" class="idle-countdown">
-  🔒 Auto logout: 
-  <span id="idle-countdown-time">10.00</span>
-</div>
+
 
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 <div class="hamburger" id="hamburger-btn" onclick="toggleSidebar()">☰</div>
@@ -40,6 +37,10 @@
   <div class="sidebar-logo">
     <img class="brand-logo brand-logo-sidebar" src="assets/collabor8-logo.png" alt="COLLABOR8 Work Space">
     <div class="logo-loc">No.9 &amp; 10, Chakrapani St, Guindy, Chennai</div>
+  </div>
+   <div id="idle-countdown" class="idle-countdown">
+    🔒 Auto logout: 
+    <span id="idle-countdown-time">10.00</span>
   </div>
   
   <div class="nav-section">Overview</div>

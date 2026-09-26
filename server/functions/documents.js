@@ -1,5 +1,5 @@
 import {googleJson,response,fail,serviceAccountToken} from './_google.js';
-import {readSession, isOwner} from './_session.js';
+import {readSession, isOwner, requestOriginAllowed} from './_session.js';
 
 const MAX=5*1024*1024;
 const TYPES=new Set(['application/pdf','image/jpeg','image/png']);
@@ -61,13 +61,20 @@ async function recordDriveDocument(user,b){
 }
 
 export async function handler(event){
- const user=auth(event); if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');
+ const user=auth(event); if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');if(event.httpMethod!=='GET'&&!requestOriginAllowed(event))return fail(403,'FORBIDDEN','Cross-origin request blocked.');
  try{
   if(event.httpMethod==='GET'){
    const id=event.queryStringParameters?.id, action=event.queryStringParameters?.action||'list';
    if(action==='download'&&id){
+     const sheetId=process.env.GOOGLE_SHEET_ID, range=encodeURIComponent('documents!A:ZZ');
+     const index=await googleJson(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`);
+     const rows=index.values||[], headers=rows[0]||[];
+     const allowed=rows.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??''])))
+       .find(r=>String(r.googleDriveFileId||'')===String(id)&&String(r.status||'ACTIVE').toUpperCase()!=='DELETED');
+     if(!allowed)return fail(404,'NOT_FOUND','Document not found.');
      const meta=await googleJson(`${DRIVE}/files/${encodeURIComponent(id)}?fields=name,mimeType,size`);
      if(Number(meta.size||0)>MAX)return fail(400,'FILE_TOO_LARGE','File exceeds 5 MB limit.');
+     if(!TYPES.has(String(meta.mimeType||'')))return fail(400,'INVALID_FILE_TYPE','Unsupported document type.');
      const t=await serviceAccountToken('https://www.googleapis.com/auth/drive');
      const r=await fetch(`${DRIVE}/files/${encodeURIComponent(id)}?alt=media`,{headers:{Authorization:`Bearer ${t}`}});
      if(!r.ok)return fail(r.status,'DRIVE_DOWNLOAD_FAILED','Unable to download document.');

@@ -1,5 +1,5 @@
 import {googleJson,response,fail} from './_google.js';
-import {readSession, isOwner} from './_session.js';
+import {readSession, isOwner, requestOriginAllowed} from './_session.js';
 
 const ALLOWED_SHEETS=new Set([
  'cabins','occupants','payments','invoices','leads','quotations',
@@ -69,11 +69,12 @@ async function write(name,rows){
 }
 
 export async function handler(event){
- const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');
+ const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');if(event.httpMethod!=='GET'&&!requestOriginAllowed(event))return fail(403,'FORBIDDEN','Cross-origin request blocked.');
  try{
   if(event.httpMethod==='GET'){
    const sheet=event.queryStringParameters?.sheet;
    if(!sheet||!ALLOWED_SHEETS.has(sheet))return fail(400,'VALIDATION_ERROR','Invalid sheet.');
+   if(ADMIN_ONLY.has(sheet)&&user.role!=='admin')return fail(403,'FORBIDDEN','Admin access required.');
    return response(200,{success:true,data:await read(sheet)},{'Cache-Control':'no-store'});
   }
 
@@ -82,6 +83,7 @@ export async function handler(event){
   const b=body(event)||{};
   if(isOwner(user))return fail(403,'FORBIDDEN','Owner accounts are read-only.');
   if(ADMIN_ONLY.has(b.sheet)&&user.role!=='admin')return fail(403,'FORBIDDEN','Admin access required.');
+  if(b.sheet==='audit_logs')return fail(403,'FORBIDDEN','Audit logs cannot be modified directly.');
   if(!ALLOWED_SHEETS.has(b.sheet)||!Array.isArray(b.data))
     return fail(400,'VALIDATION_ERROR','Valid sheet and data array required.');
 

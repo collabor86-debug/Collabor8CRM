@@ -1,9 +1,6 @@
 export async function handler(event) {
 
-  if (
-    event.httpMethod !== 'POST' &&
-    event.httpMethod !== 'GET'
-  ) {
+  if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
       headers: {
@@ -19,6 +16,11 @@ export async function handler(event) {
     };
   }
 
+
+  const origin = event.headers?.origin || event.headers?.Origin;
+  const host = event.headers?.host || event.headers?.Host;
+  const proto = event.headers?.['x-forwarded-proto'] || event.headers?.['X-Forwarded-Proto'] || 'https';
+  if (origin && host) { try { if (new URL(origin).origin !== new URL(`${proto}://${host}`).origin) return { statusCode: 403, headers: {'Content-Type':'application/json'}, body: JSON.stringify({success:false,error:{code:'FORBIDDEN',message:'Cross-origin request blocked.'}}) }; } catch { return { statusCode: 403, headers: {'Content-Type':'application/json'}, body: JSON.stringify({success:false,error:{code:'FORBIDDEN',message:'Invalid request origin.'}}) }; } }
 
   // Immediately invalidate the browser's session cookie.
   //

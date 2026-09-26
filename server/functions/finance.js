@@ -1,5 +1,5 @@
 import {googleJson, response, fail} from './_google.js';
-import {readSession, isOwner} from './_session.js';
+import {readSession, isOwner, requestOriginAllowed} from './_session.js';
 
 const GST_DEFAULT=18;
 const PAYMENT_METHODS=['UPI','Bank Transfer','Cash','Cheque','Other'];
@@ -28,7 +28,7 @@ function invoiceNo(rows){let max=0;for(const r of rows){const m=String(r.invoice
 async function audit(user,action,entity,details){const rows=await sheet('audit_logs');rows.push({id:id('AUD',rows),timestamp:new Date().toISOString(),userId:user.username||'',action,entity,details:JSON.stringify(details||{})});await put('audit_logs',rows)}
 
 export async function handler(event){
- const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');
+ const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');if(event.httpMethod!=='GET'&&!requestOriginAllowed(event))return fail(403,'FORBIDDEN','Cross-origin request blocked.');
  try{
   if(event.httpMethod==='GET'){
    const [payments,invoices,occupants]=await Promise.all([sheet('payments'),sheet('invoices'),sheet('occupants')]);
@@ -44,8 +44,14 @@ export async function handler(event){
    invoices.push(inv);await put('invoices',invoices);await audit(user,'CREATE_INVOICE',inv.id,{invoiceNumber:inv.invoiceNumber});return response(200,{success:true,data:inv});
   }
   if(action==='updateInvoice'){
-   const invoices=await sheet('invoices'),inv=invoices.find(x=>x.id===b.id);if(!inv)return fail(404,'NOT_FOUND','Invoice not found.');if(inv.status==='CANCELLED')return fail(409,'CANCELLED','Cancelled invoice cannot be edited.');
-   Object.assign(inv,b,calc(b),{updatedAt:new Date().toISOString()});delete inv.action;await put('invoices',invoices);await audit(user,'UPDATE_INVOICE',inv.id,{});return response(200,{success:true,data:inv});
+   const invoices=await sheet('invoices'),inv=invoices.find(x=>x.id===b.id);
+   if(!inv)return fail(404,'NOT_FOUND','Invoice not found.');
+   if(inv.status==='CANCELLED')return fail(409,'CANCELLED','Cancelled invoice cannot be edited.');
+   const allowed=['invoiceNumber','invoiceDate','invoicePeriod','buyerGSTIN','buyerState','agreementReference','hsn','items','baseAmount','parkingAmount','otherCharges','gstRate'];
+   for(const key of allowed) if(Object.prototype.hasOwnProperty.call(b,key)) inv[key]=b[key];
+   Object.assign(inv,calc(inv),{updatedAt:new Date().toISOString()});
+   await put('invoices',invoices);await audit(user,'UPDATE_INVOICE',inv.id,{fields:allowed.filter(k=>Object.prototype.hasOwnProperty.call(b,k))});
+   return response(200,{success:true,data:inv});
   }
   if(action==='setInvoiceStatus'){
    const invoices=await sheet('invoices'),inv=invoices.find(x=>x.id===b.id);if(!inv)return fail(404,'NOT_FOUND','Invoice not found.');if(!INVOICE_STATUSES.includes(b.status))return fail(400,'VALIDATION_ERROR','Invalid invoice status.');inv.status=b.status;inv.paymentStatus=b.status;inv.updatedAt=new Date().toISOString();await put('invoices',invoices);await audit(user,'SET_INVOICE_STATUS',inv.id,{status:b.status});return response(200,{success:true,data:inv});

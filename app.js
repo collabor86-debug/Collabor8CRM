@@ -882,7 +882,7 @@ async function syncAllFromSheets(){
     loadFromSheet('virtual_office'), loadFromSheet('bookings'), loadFromSheet('documents'), loadFromSheet('settings'),
     loadFromSheet('vacated_clients')
   ]);
-  if (c && c.length) {
+  if (Array.isArray(c)) {
     cabins = c.map(row => ({
       ...row,
 
@@ -916,15 +916,22 @@ async function syncAllFromSheets(){
     }));
   }
   occupants = Array.isArray(o) ? o.map(normalizeOccupantRecord) : [];
+  const cabinStateBeforeRepair = JSON.stringify(c);
+  reconcileCabinOccupancy();
+  // Persist automatic repairs so a page refresh does not restore stale
+  // occupied flags from Google Sheets. Owner/read-only sessions never mutate.
+  if(currentUser?.role !== 'owner' && JSON.stringify(cabins) !== cabinStateBeforeRepair){
+    await syncToSheet('cabins', cabins);
+  }
   payments = Array.isArray(p) ? p : [];
   invoices = Array.isArray(inv) ? inv : [];
   leads = Array.isArray(l) ? l : [];
   quotations = Array.isArray(q) ? q : [];
   virtualOffice = Array.isArray(vo) ? vo : [];
   confBookings = Array.isArray(bk) ? bk : [];
-  documents = (d && d.length) ? d.map(x=>Object.assign(x,{linkedOccupantId:x.linkedOccupantId||x.occupantId||null,name:x.name||x.fileName,uploaded:x.uploaded||x.uploadedAt,category:x.category||x.documentType||'Other'})) : defaultDocuments();
+  documents = Array.isArray(d) ? d.map(x=>Object.assign(x,{linkedOccupantId:x.linkedOccupantId||x.occupantId||null,name:x.name||x.fileName,uploaded:x.uploaded||x.uploadedAt,category:x.category||x.documentType||'Other'})) : defaultDocuments();
   vacatedClients = Array.isArray(vac) ? vac.map(normalizeVacatedRecord) : [];
-  appSettings = (settingsRows && settingsRows.length && settingsRows[0]) ? Object.assign({}, DEFAULT_SETTINGS, settingsRows[0]) : Object.assign({}, DEFAULT_SETTINGS);
+  appSettings = (Array.isArray(settingsRows) && settingsRows.length && settingsRows[0]) ? Object.assign({}, DEFAULT_SETTINGS, settingsRows[0]) : Object.assign({}, DEFAULT_SETTINGS);
   applyTheme(appSettings.theme || 'dark');
   if(typeof refreshAll === 'function') refreshAll();
 }
@@ -1027,35 +1034,36 @@ function normalizeVacatedRecord(v){
 }
 function getStatus(o){ const dl=daysLeft(o.end); if(dl<0) return 'expired'; if(dl<=30) return 'expiring'; return 'active'; }
 function cabinsOf(floor){ return cabins.filter(c=>c.floor===floor); }
-function totalSeats(){
-  return cabins.reduce((s,c) => s + (Number(c.seater) || 0), 0);
+function reconcileCabinOccupancy(){
+  cabins.forEach(c=>{ c.occupied=false; c.occupantId=null; c.occupantName=null; });
+  const assigned=new Set();
+  occupants.forEach(o=>{
+    const valid=[];
+    (o.cabins||[]).forEach(cid=>{
+      const c=cabins.find(x=>x.id===cid);
+      if(!c || assigned.has(cid)) return;
+      assigned.add(cid); valid.push(cid);
+      c.occupied=true; c.occupantId=o.id; c.occupantName=o.name||null;
+    });
+    o.cabins=valid;
+    const alloc={};
+    valid.forEach(cid=>{
+      const c=cabins.find(x=>x.id===cid), n=Number(o.seatAllocations?.[cid]);
+      if(c && Number.isFinite(n) && n>0) alloc[cid]=Math.min(Math.floor(n),Number(c.seater)||0);
+    });
+    o.seatAllocations=alloc;
+  });
 }
-function occupiedSeats(){
-  return cabins.reduce((s,c)=>{
-    if(!c.occupied) return s;
-
-    const capacity = Number(c.seater) || 0;
-    const linked = occupants.find(o => o.id === c.occupantId);
-    const allocated = linked && linked.seatAllocations && Number(linked.seatAllocations[c.id])
-      ? Number(linked.seatAllocations[c.id])
-      : capacity;
-
-    return s + Math.min(allocated, capacity);
-  },0);
+function cabinOccupiedSeats(c){
+  if(!c?.occupied || !c.occupantId) return 0;
+  const capacity=Math.max(0,Number(c.seater)||0);
+  const linked=occupants.find(o=>o.id===c.occupantId);
+  if(!linked) return 0;
+  const allocated=Number(linked.seatAllocations?.[c.id]);
+  return Math.min(capacity,Number.isFinite(allocated)&&allocated>0?Math.floor(allocated):capacity);
 }
-function occupantSeatCount(o){
-  return (o.cabins||[]).reduce((s,id)=>{
-    const c=cabins.find(x=>x.id===id);
-    if(!c) return s;
-
-    const capacity = Number(c.seater) || 0;
-    const allocated = o.seatAllocations && Number(o.seatAllocations[id])
-      ? Number(o.seatAllocations[id])
-      : capacity;
-
-    return s + Math.min(allocated, capacity);
-  },0);
-}
+function totalSeats(){ return cabins.reduce((s,c)=>s+Math.max(0,Number(c.seater)||0),0); }
+function occupiedSeats(){ return cabins.reduce((s,c)=>s+cabinOccupiedSeats(c),0); }
 function fmtBytes(n){ if(n>1024*1024) return (n/1024/1024).toFixed(2)+' MB'; if(n>1024) return (n/1024).toFixed(1)+' KB'; return n+' B'; }
 
 // ══════════════════════════════════ FLOOR SUMMARY (DASHBOARD) ══════════════════════════════════
@@ -1064,17 +1072,7 @@ function renderFloorSummaryCards(){
   el.innerHTML = FLOORS.map(floor=>{
     const list = cabinsOf(floor);
     const seatTotal = list.reduce((s,c) => s + (Number(c.seater) || 0), 0);
-    const occSeats = list.reduce((s,c)=>{
-      if(!c.occupied) return s;
-
-      const capacity = Number(c.seater) || 0;
-      const o = occupants.find(x => x.id === c.occupantId);
-      const allocated = o && o.seatAllocations && Number(o.seatAllocations[c.id])
-        ? Number(o.seatAllocations[c.id])
-        : capacity;
-
-      return s + Math.min(allocated, capacity);
-    },0);
+    const occSeats = list.reduce((s,c)=>s+cabinOccupiedSeats(c),0);
     const cabinCount = list.length;
     const occCabins = list.filter(c=>c.occupied).length;
     const pct = seatTotal ? Math.round(occSeats/seatTotal*100) : 0;
@@ -1090,7 +1088,7 @@ function renderFloorSummaryCards(){
 // ══════════════════════════════════ FLOOR PAGE ══════════════════════════════════
 function renderFloorTabs(){
   const el = document.getElementById('floor-tabs');
-  el.innerHTML = FLOORS.map(f=>`<div class="tab ${f===floorCurrent?'active':''}" onclick="switchFloor('${f}')">${f}</div>`).join('');
+  el.innerHTML = FLOORS.map(f=>`<div class="tab ${f===floorCurrent?'active':''}" data-floor="${esc(f)}" onclick="switchFloor(this.dataset.floor)">${esc(f)}</div>`).join('');
 }
 function switchFloor(f){ floorCurrent=f; floorFilter='all'; renderFloorPage(); }
 
@@ -1134,7 +1132,7 @@ function renderFloorGrid(){
   list.forEach(c=>{
     const cell = document.createElement('div');
     cell.className = 'ws-cell ' + (c.occupied?'occupied':'vacant');
-    cell.innerHTML = `<div>${c.id}</div><div class="cell-seater">${c.seater}-seat</div>`;
+    cell.innerHTML = `<div>${esc(c.id)}</div><div class="cell-seater">${esc(c.seater)}-seat</div>`;
     cell.addEventListener('mouseenter', e=>showCabinTooltip(e,c));
     cell.addEventListener('mouseleave', ()=>document.getElementById('tooltip').style.display='none');
     cell.addEventListener('click', ()=>openCabinModal(c.id));
@@ -1194,10 +1192,13 @@ function toggleCabinOccupied(id){
   if(!c.occupied){ c.occupantId=null; c.occupantName=null; }
   saveCabins(); refreshAll();
 }
-function deleteCabin(id){
+async function deleteCabin(id){
   if(!confirm('Delete cabin '+id+'? This cannot be undone.')) return;
-  cabins = cabins.filter(c=>c.id!==id);
-  saveCabins(); refreshAll();
+  const nextCabins=cabins.filter(c=>c.id!==id);
+  const nextOccupants=occupants.map(o=>({...o,cabins:(o.cabins||[]).filter(cid=>cid!==id),seatAllocations:Object.fromEntries(Object.entries(o.seatAllocations||{}).filter(([cid])=>cid!==id))}));
+  const [cabinsOk,occupantsOk]=await Promise.all([syncToSheet('cabins',nextCabins),syncToSheet('occupants',nextOccupants)]);
+  if(!cabinsOk||!occupantsOk){alert('The cabin could not be deleted completely from Google Sheets. No local changes were applied.');return;}
+  cabins=nextCabins; occupants=nextOccupants; reconcileCabinOccupancy(); refreshAll();
 }
 function openAddCabin(){
   const id = prompt('New Cabin ID (e.g. F13, S13, T13):');
@@ -1477,10 +1478,14 @@ function renderSeatAllocationEditor(containerId, cabinIds, allocations){
 }
 function collectSeatAllocations(containerId){const out={};document.querySelectorAll('#'+containerId+' [data-seat-cabin]').forEach(i=>{const c=i.dataset.seatCabin;const cabin=cabins.find(x=>x.id===c);out[c]=Math.max(0,Math.min(parseInt(i.value)||0,cabin?cabin.seater:0));});return out;}
 function onSeatAllocationChange(){ const ids=selectedAddCabins(); let total=0; document.querySelectorAll('#a-seat-allocation [data-seat-cabin]').forEach(i=>total+=parseInt(i.value)||0); document.getElementById('a-sum-seats').textContent=total; }
-function deleteOccupant(id){
+async function deleteOccupant(id){
   if(!confirm('Remove this occupant and free their cabin(s)? This cannot be undone.')) return;
-  const o=occupants.find(x=>x.id===id); if(o)(o.cabins||[]).forEach(cid=>{const c=cabins.find(x=>x.id===cid);if(c){c.occupied=false;c.occupantId=null;c.occupantName=null;}});
-  occupants=occupants.filter(x=>x.id!==id);saveCabins();saveOccupants();refreshAll();
+  const o=occupants.find(x=>x.id===id); if(!o)return;
+  const nextOccupants=occupants.filter(x=>x.id!==id);
+  const nextCabins=cabins.map(c=>((o.cabins||[]).includes(c.id)||c.occupantId===id)?{...c,occupied:false,occupantId:null,occupantName:null}:c);
+  const [occupantsOk,cabinsOk]=await Promise.all([syncToSheet('occupants',nextOccupants),syncToSheet('cabins',nextCabins)]);
+  if(!occupantsOk||!cabinsOk){alert('The occupant could not be completely removed from Google Sheets. No local changes were applied. Please refresh and try again.');return;}
+  occupants=nextOccupants; cabins=nextCabins; reconcileCabinOccupancy(); refreshAll();
 }
 function syncEditSeatAllocationFields(){ const ids=(document.getElementById('eo-ws').value||'').split(',').map(s=>s.trim()).filter(Boolean); renderSeatAllocationEditor('eo-seat-allocation',ids,collectSeatAllocations('eo-seat-allocation')); }
 function openEditOccModal(id){

@@ -620,7 +620,7 @@
    ═══════════════════════════════════════ */
 
 #idle-countdown {
-  position:static;
+  /* position:static; */
   width:100%;
   margin-top:10px;
   display:none;

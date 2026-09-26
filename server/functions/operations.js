@@ -1,5 +1,5 @@
 import {googleJson,response,fail} from './_google.js';
-import {readSession, isOwner} from './_session.js';
+import {readSession, isOwner, requestOriginAllowed} from './_session.js';
 
 const SHEETS=new Set(['maintenance','inventory','vendors','expenses','automation','integrations']);
 const ADMIN_ONLY=new Set(['expenses','automation','integrations']);
@@ -22,7 +22,7 @@ async function write(name,rows){
 const clean=(v,max=500)=>String(v??'').trim().slice(0,max);
 function nextId(rows,prefix){return `${prefix}-${String(rows.length+1).padStart(5,'0')}`}
 export async function handler(event){
- const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');
+ const user=auth(event);if(!user)return fail(401,'UNAUTHENTICATED','Sign in required.');if(event.httpMethod!=='GET'&&!requestOriginAllowed(event))return fail(403,'FORBIDDEN','Cross-origin request blocked.');
  try{
   const b=body(event)||{}; const sheet=event.queryStringParameters?.sheet||b.sheet;
   if(!sheet||!SHEETS.has(sheet))return fail(400,'VALIDATION_ERROR','Invalid operations sheet.');
