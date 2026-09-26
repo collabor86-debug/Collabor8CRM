@@ -257,28 +257,79 @@ async function writeUsers(users) {
 // ============================================================
 
 function environmentAccounts() {
+  // Production-safe accounts supplied through Vercel environment variables.
+  // These accounts do NOT depend on Google Sheets being available.
+  //
+  // Supported variable names:
+  //   ADMIN_ID / ADMIN_PASSWORD
+  //   MANAGER_ID / MANAGER_PASSWORD
+  //   MANAGING_DIRECTOR_ID / MANAGING_DIRECTOR_PASSWORD
+  //   OWNER_ID / OWNER_PASSWORD
+  //
+  // Backward-compatible aliases are also accepted:
+  //   COLLABOR8_ADMIN_USERNAME / COLLABOR8_ADMIN_PASSWORD
+  //   COLLABOR8_STAFF_USERNAME / COLLABOR8_STAFF_PASSWORD
+  //   COLLABOR8_MANAGER_USERNAME / COLLABOR8_MANAGER_PASSWORD
+  //   COLLABOR8_MANAGING_DIRECTOR_USERNAME / COLLABOR8_MANAGING_DIRECTOR_PASSWORD
+  //   COLLABOR8_OWNER_USERNAME / COLLABOR8_OWNER_PASSWORD
+
+  const definitions = [
+    {
+      role: 'admin',
+      displayName: 'Administrator',
+      idKeys: ['ADMIN_ID', 'COLLABOR8_ADMIN_USERNAME'],
+      passwordKeys: ['ADMIN_PASSWORD', 'COLLABOR8_ADMIN_PASSWORD']
+    },
+    {
+      role: 'manager',
+      displayName: 'Manager',
+      idKeys: ['MANAGER_ID', 'COLLABOR8_MANAGER_USERNAME'],
+      passwordKeys: ['MANAGER_PASSWORD', 'COLLABOR8_MANAGER_PASSWORD']
+    },
+    {
+      role: 'managing_director',
+      displayName: 'Managing Director',
+      idKeys: [
+        'MANAGING_DIRECTOR_ID',
+        'COLLABOR8_MANAGING_DIRECTOR_USERNAME'
+      ],
+      passwordKeys: [
+        'MANAGING_DIRECTOR_PASSWORD',
+        'COLLABOR8_MANAGING_DIRECTOR_PASSWORD'
+      ]
+    },
+    {
+      role: 'owner',
+      displayName: 'Owner',
+      idKeys: ['OWNER_ID', 'COLLABOR8_OWNER_USERNAME'],
+      passwordKeys: ['OWNER_PASSWORD', 'COLLABOR8_OWNER_PASSWORD']
+    },
+    // Preserve the existing staff account configuration.
+    {
+      role: 'staff',
+      displayName: 'Staff',
+      idKeys: ['STAFF_ID', 'COLLABOR8_STAFF_USERNAME'],
+      passwordKeys: ['STAFF_PASSWORD', 'COLLABOR8_STAFF_PASSWORD']
+    }
+  ];
+
   const accounts = [];
 
-  for (const role of ['admin', 'staff']) {
-    const username =
-      process.env[
-        `COLLABOR8_${role.toUpperCase()}_USERNAME`
-      ];
+  for (const definition of definitions) {
+    const username = definition.idKeys
+      .map(key => process.env[key])
+      .find(value => String(value || '').trim() !== '');
 
-    const password =
-      process.env[
-        `COLLABOR8_${role.toUpperCase()}_PASSWORD`
-      ];
+    const password = definition.passwordKeys
+      .map(key => process.env[key])
+      .find(value => String(value || '') !== '');
 
     if (username && password) {
       accounts.push({
-        username,
-        password,
-        role,
-        displayName:
-          role === 'admin'
-            ? 'Administrator'
-            : 'Staff'
+        username: String(username).trim(),
+        password: String(password),
+        role: definition.role,
+        displayName: definition.displayName
       });
     }
   }
@@ -318,9 +369,13 @@ async function persistEnvironmentUser(user) {
       id:
         existingIndex >= 0
           ? users[existingIndex].id
-          : user.role === 'admin'
-            ? 'USR-00001'
-            : 'USR-00002',
+          : ({
+              admin: 'USR-00001',
+              manager: 'USR-00002',
+              managing_director: 'USR-00003',
+              owner: 'USR-00004',
+              staff: 'USR-00005'
+            }[user.role] || `USR-${String(users.length + 1).padStart(5, '0')}`),
 
       username: user.username,
       displayName: user.displayName,
