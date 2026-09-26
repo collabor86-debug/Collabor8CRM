@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-const ALLOWED_ROLES=new Set(['admin','staff','owner']);
+const ALLOWED_ROLES=new Set(['admin','manager','managing_director','staff','owner']);
 const secret=()=>{
  const value=process.env.SESSION_SECRET||'';
  if(!value) throw new Error('Missing SESSION_SECRET');

@@ -841,6 +841,7 @@ async function syncToSheet(tab, data, options = {}){
     const res = await fetch(SHEETS_API, {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
+      credentials:'include',
       body: JSON.stringify({ sheet: tab, data })
     });
     let body = null;
@@ -861,7 +862,7 @@ async function syncToSheet(tab, data, options = {}){
 
 async function loadFromSheet(tab){
   try{
-    const res = await fetch(SHEETS_API + '?sheet=' + encodeURIComponent(tab));
+    const res = await fetch(SHEETS_API + '?sheet=' + encodeURIComponent(tab), { credentials:'include' });
     if(!res.ok) throw new Error('load failed: ' + res.status);
     const body = await res.json();
     return Array.isArray(body.data) ? body.data : null;
