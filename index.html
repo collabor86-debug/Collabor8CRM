@@ -194,6 +194,25 @@
 <!-- VACATED CLIENT MODAL -->
 <div class="modal-overlay" id="vacatedModal"><div class="modal" style="width:760px;max-height:90vh;overflow-y:auto;"><div class="modal-title"><span>Vacate Client &amp; Settle Funds</span><span class="modal-close" onclick="closeVacatedModal()">✕</span></div><input type="hidden" id="vac-id"/><div class="form-row"><div class="form-group"><label class="form-label">Client</label><input class="form-input" id="vac-name" readonly/></div><div class="form-group"><label class="form-label">Company</label><input class="form-input" id="vac-company" readonly/></div></div><div class="form-row"><div class="form-group"><label class="form-label">Cabin(s)</label><input class="form-input" id="vac-cabins" readonly/></div><div class="form-group"><label class="form-label">Date of Vacating</label><input class="form-input" id="vac-date" type="date"/></div></div><div class="vacated-section-title">Client Funds</div><div class="form-row"><div class="form-group"><label class="form-label">Security Deposit (₹)</label><input class="form-input" id="vac-deposit" type="number" min="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Deposit Settlement</label><select class="form-input" id="vac-deposit-action"><option>Refund</option><option>Adjusted</option></select></div></div><div class="form-row"><div class="form-group"><label class="form-label">Car Parking Deposit (₹)</label><input class="form-input" id="vac-parking-deposit" type="number" min="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Parking Deposit Settlement</label><select class="form-input" id="vac-parking-deposit-action"><option>Refund</option><option>Adjusted</option></select></div></div><div class="form-row"><div class="form-group"><label class="form-label">Advance Amount (₹)</label><input class="form-input" id="vac-advance" type="number" min="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Advance Settlement</label><select class="form-input" id="vac-advance-action"><option>Refund</option><option>Adjusted</option></select></div></div><div class="vacated-section-title">Deductions</div><div class="form-row"><div class="form-group"><label class="form-label">Damage Deduction (₹)</label><input class="form-input" id="vac-damage" type="number" min="0" value="0" oninput="calculateVacatedSettlement()"/></div><div class="form-group"><label class="form-label">Unpaid Rent Deduction (₹)</label><input class="form-input" id="vac-unpaid-rent" type="number" min="0" value="0" oninput="calculateVacatedSettlement()"/></div></div><div class="vacated-settlement-grid"><div><span>Total Client Funds</span><strong id="vac-total-funds">₹0</strong></div><div><span>Total Deductions</span><strong id="vac-total-deductions">₹0</strong></div><div><span>Final Refund / Balance</span><strong id="vac-refund-value">₹0</strong></div></div><div class="form-row"><div class="form-group"><label class="form-label">Date of Refund / Settlement</label><input class="form-input" id="vac-refund-date" type="date"/></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="vac-notes" placeholder="Settlement notes / reason for deductions"/></div></div><div class="section-note">Damage and unpaid-rent deductions are taken from the combined deposit + advance. The CRM will never calculate a negative refund.</div><div class="modal-actions"><button class="btn" onclick="closeVacatedModal()">Cancel</button><button class="btn btn-primary" onclick="confirmVacateClient()">✓ Confirm Vacated &amp; Save Settlement</button></div></div></div>
 
+<!-- VACATED CLIENT EDIT MODAL -->
+<div class="modal-overlay" id="vacatedEditModal">
+  <div class="modal" style="width:760px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-title"><span>Edit Vacated Client</span><span class="modal-close" onclick="closeVacatedEditModal()">✕</span></div>
+    <input type="hidden" id="vce-id"/>
+    <div class="form-row"><div class="form-group"><label class="form-label">Client</label><input class="form-input" id="vce-name"/></div><div class="form-group"><label class="form-label">Company</label><input class="form-input" id="vce-company"/></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Cabin(s)</label><input class="form-input" id="vce-cabins"/></div><div class="form-group"><label class="form-label">Date of Vacating</label><input class="form-input" id="vce-date" type="date"/></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Agreement Start</label><input class="form-input" id="vce-start" type="date"/></div><div class="form-group"><label class="form-label">Agreement End</label><input class="form-input" id="vce-end" type="date"/></div></div>
+    <div class="vacated-section-title">Client Funds</div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Security Deposit (₹)</label><input class="form-input" id="vce-deposit" type="number" min="0"/></div><div class="form-group"><label class="form-label">Settlement</label><select class="form-input" id="vce-deposit-action"><option>Refund</option><option>Adjusted</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Car Parking Deposit (₹)</label><input class="form-input" id="vce-parking-deposit" type="number" min="0"/></div><div class="form-group"><label class="form-label">Settlement</label><select class="form-input" id="vce-parking-deposit-action"><option>Refund</option><option>Adjusted</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Advance (₹)</label><input class="form-input" id="vce-advance" type="number" min="0"/></div><div class="form-group"><label class="form-label">Settlement</label><select class="form-input" id="vce-advance-action"><option>Refund</option><option>Adjusted</option></select></div></div>
+    <div class="vacated-section-title">Deductions</div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Damage Deduction (₹)</label><input class="form-input" id="vce-damage" type="number" min="0"/></div><div class="form-group"><label class="form-label">Unpaid Rent Deduction (₹)</label><input class="form-input" id="vce-unpaid-rent" type="number" min="0"/></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Date of Refund / Settlement</label><input class="form-input" id="vce-refund-date" type="date"/></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="vce-notes"/></div></div>
+    <div class="modal-actions"><button class="btn" onclick="closeVacatedEditModal()">Cancel</button><button class="btn btn-primary" onclick="saveVacatedClientEdit()">Save Changes</button></div>
+  </div>
+</div>
+
 <!-- LEAD DETAIL / CREATE MODAL -->
 <div class="modal-overlay" id="leadModal">
   <div class="modal" style="width:560px;">
@@ -331,8 +350,8 @@
       </div>
       <div class="form-group"><label class="form-label">Booking/Usage Status</label>
         <select class="form-input" id="ub-status">
-          <option>Upcoming</option>
-          <option>Ongoing</option>
+          <option>BOOKED</option>
+          <option>CONFIRMED</option>
           <option>Completed</option>
           <option>Cancelled</option>
         </select>
@@ -347,7 +366,11 @@
       <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="ub-email" type="email"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="ub-date" type="date"/></div>
+       <div class="form-group"><label class="form-label">Start Date</label><input class="form-input" id="ub-start-date" type="date"/></div>
+       <div class="form-group"><label class="form-label">End Date</label><input class="form-input" id="ub-end-date" type="date"/></div>
+     </div>
+     <div class="form-row">
+       <div class="form-group"><label class="form-label">Booking Date</label><input class="form-input" id="ub-date" type="date"/></div>
       <div class="form-group"><label class="form-label">Number of People</label><input class="form-input" id="ub-people" type="number" min="1" value="1"/></div>
     </div>
     <div class="form-row" id="ub-time-group">
@@ -780,7 +803,7 @@
     <div class="card">
       <div class="card-title">Payment Ledger <span class="card-title-icon" style="font-size:11px;color:var(--text3);font-weight:400;">Individual monthly invoices</span></div>
       <table class="data-table">
-        <thead><tr><th>Occupant</th><th>Cabin(s)</th><th>Month</th><th>Amount Due</th><th>Due Date</th><th>Status</th><th>Reminder</th><th>Action</th></tr></thead>
+        <thead><tr><th>Occupant</th><th>Cabin(s)</th><th>Month</th><th>Amenities</th><th>Amount Due</th><th>Due Date</th><th>Status</th><th>Reminder</th><th>Action</th></tr></thead>
         <tbody id="payments-body"></tbody>
       </table>
       <div id="payments-empty" class="empty-state" style="display:none">No payment records match this view.</div>

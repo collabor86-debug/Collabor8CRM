@@ -49,7 +49,7 @@ async function recordDriveDocument(user,b){
   if(!TYPES.has(mime))return fail(400,'INVALID_FILE_TYPE','Only PDF, JPG and PNG files are allowed.');
 
   const now=new Date().toISOString();
-  const doc={id:`DOC-${Date.now()}`,occupantId:b.occupantId||'',documentType:b.documentType||'Other',fileName:meta.name||b.name||'document',googleDriveFileId:meta.id,googleDriveUrl:meta.webViewLink||`https://drive.google.com/open?id=${meta.id}`,uploadedBy:user.username||'',uploadedAt:now,status:'ACTIVE',mime,size,notes:b.notes||''};
+  const doc={id:`DOC-${Date.now()}`,occupantId:b.occupantId||'',documentType:b.documentType||'Other',docType:b.documentType||'Other',fileName:meta.name||b.name||'document',googleDriveFileId:meta.id,googleDriveUrl:meta.webViewLink||`https://drive.google.com/open?id=${meta.id}`,uploadedBy:user.username||'',uploadedAt:now,status:'ACTIVE',mime,size,notes:b.notes||''};
   const sheetId=process.env.GOOGLE_SHEET_ID, range=encodeURIComponent('documents!A:ZZ');
   const x=await googleJson(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`); const rows=x.values||[];
   const headers=rows[0]||Object.keys(doc); const old=rows.slice(1).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??''])));

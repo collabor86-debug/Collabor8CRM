@@ -930,7 +930,7 @@ async function syncAllFromSheets(){
   quotations = Array.isArray(q) ? q : [];
   virtualOffice = Array.isArray(vo) ? vo : [];
   confBookings = Array.isArray(bk) ? bk : [];
-  documents = (d && d.length) ? d.map(x=>Object.assign(x,{linkedOccupantId:x.linkedOccupantId||x.occupantId||null,name:x.name||x.fileName,uploaded:x.uploaded||x.uploadedAt,category:x.category||x.documentType||'Other'})) : defaultDocuments();
+  documents = (d && d.length) ? d.map(x=>Object.assign(x,{linkedOccupantId:x.linkedOccupantId||x.occupantId||null,name:x.name||x.fileName,uploaded:x.uploaded||x.uploadedAt,category:x.category||x.documentType||'Other',docType:x.docType||x.documentType||'Other'})) : defaultDocuments();
   vacatedClients = Array.isArray(vac) ? vac.map(normalizeVacatedRecord) : [];
   appSettings = (settingsRows && settingsRows.length && settingsRows[0]) ? Object.assign({}, DEFAULT_SETTINGS, settingsRows[0]) : Object.assign({}, DEFAULT_SETTINGS);
   applyTheme(appSettings.theme || 'dark');
@@ -939,8 +939,8 @@ async function syncAllFromSheets(){
 
 function saveCabins(){ syncToSheet('cabins', cabins); }
 function saveOccupants(){ syncToSheet('occupants', occupants); }
-function saveVacatedClients(){ syncToSheet('vacated_clients', vacatedClients); }
-function saveVirtualOffice(){ syncToSheet('virtual_office', virtualOffice); }
+function saveVacatedClients(options = {}){ return syncToSheet('vacated_clients', vacatedClients, options); }
+function saveVirtualOffice(options = {}){ return syncToSheet('virtual_office', virtualOffice, options); }
 function saveDocuments(){ return true; }
 // saveCabins(); saveOccupants(); saveDocuments(); // persist first-run defaults immediately
 
@@ -956,7 +956,7 @@ function saveInvoices(){ syncToSheet('invoices', invoices); }
 const LEAD_STAGES = ['New','Contacted','Follow-up','Quotation Sent','Negotiation','Converted','Lost'];
 const LEAD_SOURCES = ['Cold Call','Instagram','Facebook','Google','LinkedIn','WhatsApp','Website','Agency','Justdial','Referral','Walk-in','Other'];
 let leads = [];
-function saveLeads(){ syncToSheet('leads', leads); }
+function saveLeads(options = {}){ return syncToSheet('leads', leads, options); }
 
 let quotations = [];
 let confBookings = [];
@@ -1555,6 +1555,69 @@ async function confirmVacateClient(){
   closeVacatedModal();refreshAll();
   alert('Vacancy saved. The historical lease and payment records remain available in Vacated Clients.');
 }
+async function saveVacatedClientEdit(){
+  const id=document.getElementById('vce-id').value;
+  const ix=vacatedClients.findIndex(v=>String(v.vacatedRecordId||v.id)===String(id));
+  if(ix<0){alert('Vacated client record not found.');return;}
+  const previous={...vacatedClients[ix]};
+  const deposit=Math.max(0,Number(document.getElementById('vce-deposit').value)||0);
+  const parkingDeposit=Math.max(0,Number(document.getElementById('vce-parking-deposit').value)||0);
+  const advance=Math.max(0,Number(document.getElementById('vce-advance').value)||0);
+  const damage=Math.max(0,Number(document.getElementById('vce-damage').value)||0);
+  const unpaid=Math.max(0,Number(document.getElementById('vce-unpaid-rent').value)||0);
+  const totalFunds=deposit+parkingDeposit+advance;
+  const totalDeductions=Math.min(totalFunds,damage+unpaid);
+  const finalRefund=Math.max(0,totalFunds-totalDeductions);
+  vacatedClients[ix]=Object.assign({},vacatedClients[ix],{
+    name:document.getElementById('vce-name').value.trim(),
+    comp:document.getElementById('vce-company').value.trim(),
+    vacatedCabins:document.getElementById('vce-cabins').value.split(',').map(x=>x.trim()).filter(Boolean),
+    start:document.getElementById('vce-start').value,
+    end:document.getElementById('vce-end').value,
+    vacatedAt:document.getElementById('vce-date').value,
+    settlementDate:document.getElementById('vce-refund-date').value,
+    securityDepositAtVacating:deposit,
+    parkingDepositAtVacating:parkingDeposit,
+    advanceAtVacating:advance,
+    depositSettlement:document.getElementById('vce-deposit-action').value,
+    parkingDepositSettlement:document.getElementById('vce-parking-deposit-action').value,
+    advanceSettlement:document.getElementById('vce-advance-action').value,
+    damageDeduction:damage,unpaidRentDeduction:unpaid,
+    totalClientFunds:totalFunds,totalDeductions,finalRefund,
+    vacatingNotes:document.getElementById('vce-notes').value.trim()
+  });
+  try{
+    await saveVacatedClients({throwOnFailure:true});
+    closeVacatedEditModal();renderVacatedClients();
+    alert('Vacated client updated successfully.');
+  }catch(e){
+    vacatedClients[ix]=previous;
+    alert(e.message||'Unable to update the vacated client.');
+  }
+}
+function openVacatedEditModal(id){
+  const v=vacatedClients.find(x=>String(x.vacatedRecordId||x.id)===String(id));
+  if(!v){alert('Vacated client record not found.');return;}
+  document.getElementById('vce-id').value=v.vacatedRecordId||v.id;
+  document.getElementById('vce-name').value=v.name||'';
+  document.getElementById('vce-company').value=v.comp||'';
+  document.getElementById('vce-cabins').value=(v.vacatedCabins||v.cabins||[]).join(', ');
+  document.getElementById('vce-start').value=v.start||'';
+  document.getElementById('vce-end').value=v.end||'';
+  document.getElementById('vce-date').value=v.vacatedAt||'';
+  document.getElementById('vce-refund-date').value=v.settlementDate||'';
+  document.getElementById('vce-deposit').value=Number(v.securityDepositAtVacating??v.deposit)||0;
+  document.getElementById('vce-parking-deposit').value=Number(v.parkingDepositAtVacating??v.parkingDeposit)||0;
+  document.getElementById('vce-advance').value=Number(v.advanceAtVacating??v.advance)||0;
+  document.getElementById('vce-deposit-action').value=v.depositSettlement||'Refund';
+  document.getElementById('vce-parking-deposit-action').value=v.parkingDepositSettlement||'Refund';
+  document.getElementById('vce-advance-action').value=v.advanceSettlement||'Refund';
+  document.getElementById('vce-damage').value=Number(v.damageDeduction)||0;
+  document.getElementById('vce-unpaid-rent').value=Number(v.unpaidRentDeduction)||0;
+  document.getElementById('vce-notes').value=v.vacatingNotes||'';
+  document.getElementById('vacatedEditModal').classList.add('open');
+}
+function closeVacatedEditModal(){document.getElementById('vacatedEditModal').classList.remove('open');}
 function renderVacatedClients(){
   const q=(document.getElementById('vac-search')?.value||'').toLowerCase();
   const rows=vacatedClients.filter(v=>String(v.name||'').toLowerCase().includes(q)||String(v.comp||'').toLowerCase().includes(q)||String((v.vacatedCabins||v.cabins||[]).join(',')).toLowerCase().includes(q));
@@ -1565,11 +1628,23 @@ function renderVacatedClients(){
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=typeof v==='number'?fmtINR(v):String(v);};
   set('vac-count',rows.length);set('vac-funds',funds);set('vac-deductions',ded);set('vac-refunded',refund);
   if(!rows.length){body.innerHTML='';if(empty)empty.style.display='block';return;} if(empty)empty.style.display='none';
-  body.innerHTML=[...rows].sort((a,b)=>String(b.vacatedAt||'').localeCompare(String(a.vacatedAt||''))).map(v=>`<tr><td><div class="occ-main">${esc(v.name||'—')}</div><span class="occ-sub">${esc(v.comp||'—')}</span></td><td>${esc((v.vacatedCabins||v.cabins||[]).join(', '))}</td><td>${fmtDate(v.start)}<span class="occ-sub">End ${fmtDate(v.end)}</span></td><td>${fmtDate(v.vacatedAt)}</td><td class="num-col">${fmtINR(v.securityDepositAtVacating||v.deposit||0)}<span class="occ-sub">Security</span></td><td class="num-col">${fmtINR(v.parkingDepositAtVacating||v.parkingDeposit||0)}</td><td class="num-col">${fmtINR(v.advanceAtVacating||v.advance||0)}</td><td class="num-col">${fmtINR(v.damageDeduction||0)}</td><td class="num-col">${fmtINR(v.unpaidRentDeduction||0)}</td><td class="num-col">${fmtINR(v.totalClientFunds||0)}</td><td class="num-col">${fmtINR(v.totalDeductions||0)}</td><td class="num-col"><strong>${fmtINR(v.finalRefund||0)}</strong></td></tr>`).join('');
+  body.innerHTML=[...rows].sort((a,b)=>String(b.vacatedAt||'').localeCompare(String(a.vacatedAt||''))).map(v=>`<tr><td><div class="occ-main">${esc(v.name||'—')}</div><span class="occ-sub">${esc(v.comp||'—')}</span></td><td>${esc((v.vacatedCabins||v.cabins||[]).join(', '))}</td><td>${fmtDate(v.start)}<span class="occ-sub">End ${fmtDate(v.end)}</span></td><td>${fmtDate(v.vacatedAt)}</td><td class="num-col">${fmtINR(v.securityDepositAtVacating||v.deposit||0)}<span class="occ-sub">Security</span></td><td class="num-col">${fmtINR(v.parkingDepositAtVacating||v.parkingDeposit||0)}</td><td class="num-col">${fmtINR(v.advanceAtVacating||v.advance||0)}</td><td class="num-col">${fmtINR(v.damageDeduction||0)}</td><td class="num-col">${fmtINR(v.unpaidRentDeduction||0)}</td><td class="num-col">${fmtINR(v.totalClientFunds||0)}</td><td class="num-col">${fmtINR(v.totalDeductions||0)}</td><td class="num-col"><strong>${fmtINR(v.finalRefund||0)}</strong></td><td><button class="btn btn-sm" onclick="openVacatedEditModal('${esc(v.vacatedRecordId||v.id||'')}')">Edit</button></td></tr>`).join('');
 }
 
 // ══════════════════════════════════ VIRTUAL OFFICE ══════════════════════════════════
 function amenityLinesToText(items){return (items||[]).map(x=>x.name+' | '+(x.amount||0)).join('\n');}
+function renderVoAgreementDates(){
+  const startEl=document.getElementById('vo-start'), endEl=document.getElementById('vo-end');
+  const label=document.getElementById('vo-start-ddmmyyyy');
+  const start=startEl?.value||'';
+  if(label) label.textContent=start?formatDateDDMMYYYY(start):'DD/MM/YYYY';
+  if(!start||!endEl)return;
+  // Virtual Office uses the CRM's existing 11-month agreement convention.
+  const dt=new Date(start+'T00:00:00');
+  if(Number.isNaN(dt.getTime()))return;
+  const calculated=addMonthsPreserveDay(dt,11);
+  endEl.value=localDateKey(calculated);
+}
 function parseAmenityText(text){return (text||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const a=x.split('|');return {name:(a[0]||'').trim(),amount:parseFloat((a[1]||'0').replace(/,/g,''))||0};});}
 function virtualOfficeYearlyTotal(v){return (v.rent||0)+(v.amenities||[]).reduce((s,a)=>s+(a.amount||0),0)+((v.parking||0)*PARKING_RATE*12);}
 function openVirtualOfficeModal(id) {
@@ -1632,11 +1707,20 @@ function openVirtualOfficeModal(id) {
 // That name collision meant this definition (declared later) silently replaced the sync
 // function, and the saveVirtualOffice() call at the end of this function just called itself
 // forever instead of persisting to Google Sheets -- which is why Virtual Office data never saved.
-function saveVirtualOfficeClient(){
+async function saveVirtualOfficeClient(){
   const id=document.getElementById('vo-id').value||'vo-'+Date.now(),name=document.getElementById('vo-name').value.trim(),start=document.getElementById('vo-start').value,end=document.getElementById('vo-end').value;
   if(!name){alert('Contact name is required.');return;}if(!start){alert('Agreement start date is required.');return;}if(end&&end<start){alert('Agreement end date cannot be before start date.');return;}
   const data={id,name,company:document.getElementById('vo-company').value.trim(),email:document.getElementById('vo-email').value.trim(),phone:document.getElementById('vo-phone').value.trim(),address:document.getElementById('vo-address').value.trim(),gstin:document.getElementById('vo-gstin').value.trim(),start,end,rent:parseFloat(document.getElementById('vo-rent').value)||0,deposit:parseFloat(document.getElementById('vo-deposit').value)||0,advance:parseFloat(document.getElementById('vo-advance').value)||0,parking:parseInt(document.getElementById('vo-parking').value)||0,parkingDate:document.getElementById('vo-parking-date').value||'',amenities:parseAmenityText(document.getElementById('vo-amenities').value)};
-  const ix=virtualOffice.findIndex(x=>x.id===id);if(ix>=0)virtualOffice[ix]=Object.assign(virtualOffice[ix],data);else virtualOffice.push(data);saveVirtualOffice();closeVirtualOfficeModal();refreshAll();
+  const ix=virtualOffice.findIndex(x=>x.id===id),previous=ix>=0?{...virtualOffice[ix]}:null;
+  if(ix>=0)virtualOffice[ix]=Object.assign({},virtualOffice[ix],data);else virtualOffice.push(data);
+  try{
+    await saveVirtualOffice({throwOnFailure:true});
+    closeVirtualOfficeModal();refreshAll();
+    alert(ix>=0?'Virtual Office client updated successfully.':'Virtual Office client saved successfully.');
+  }catch(e){
+    if(ix>=0)virtualOffice[ix]=previous;else virtualOffice=virtualOffice.filter(x=>x.id!==id);
+    alert(e.message||'Unable to save Virtual Office client. Please try again.');
+  }
 }
 function deleteVirtualOffice(id){if(!confirm('Remove this virtual-office client?'))return;virtualOffice=virtualOffice.filter(x=>x.id!==id);saveVirtualOffice();refreshAll();}
 function renderVirtualOffice(){
@@ -1661,7 +1745,7 @@ function openUsageModal(id){
  document.getElementById('ub-status').value=b?normalizeBookingStatus(b.status):'BOOKED';
  document.getElementById('ub-customer').value=b?.customer||'';document.getElementById('ub-contact').value=b?.contact||'';
  document.getElementById('ub-mobile').value=b?.phone||'';document.getElementById('ub-email').value=b?.email||'';
- document.getElementById('ub-date').value=b?.date||today();document.getElementById('ub-people').value=b?.people||1;
+ document.getElementById('ub-date').value=b?.date||b?.startDate||today();document.getElementById('ub-start-date').value=b?.startDate||b?.date||today();document.getElementById('ub-end-date').value=b?.endDate||b?.startDate||b?.date||today();document.getElementById('ub-people').value=b?.people||1;
  document.getElementById('ub-start').value=b?.startTime||'';document.getElementById('ub-end').value=b?.endTime||'';document.getElementById('ub-space').value=b?.space||'';
  document.getElementById('ub-amount').value=b?.amount||0;document.getElementById('ub-paystatus').value=b?.paymentStatus||'Pending';
  document.getElementById('ub-paymethod').value=b?.paymentMethod||'UPI';document.getElementById('ub-notes').value=b?.notes||'';
@@ -1687,7 +1771,7 @@ async function saveUsageRecord(){
  const start=document.getElementById('ub-start').value,end=document.getElementById('ub-end').value;
  if(start&&end&&end<=start){alert('End time must be after start time.');return;}
  const amount=Math.max(0,parseFloat(document.getElementById('ub-amount').value)||0);
- const data={id,bookingId:id,customer,company:customer,contact:document.getElementById('ub-contact').value.trim(),phone:document.getElementById('ub-mobile').value.trim(),email:document.getElementById('ub-email').value.trim(),type:document.getElementById('ub-type').value,date,startTime:start,endTime:end,people:Math.max(1,parseInt(document.getElementById('ub-people').value)||1),space:document.getElementById('ub-space').value.trim(),amount,gstRate:18,gstAmount:Math.round(amount*18)/100,totalAmount:Math.round(amount*1.18*100)/100,paymentStatus:document.getElementById('ub-paystatus').value,paymentMethod:document.getElementById('ub-paymethod').value,status:normalizeBookingStatus(document.getElementById('ub-status').value),notes:document.getElementById('ub-notes').value.trim(),updatedAt:new Date().toISOString()};
+ const data={id,bookingId:id,customer,company:customer,startDate,endDate,contact:document.getElementById('ub-contact').value.trim(),phone:document.getElementById('ub-mobile').value.trim(),email:document.getElementById('ub-email').value.trim(),type:document.getElementById('ub-type').value,date,startTime:start,endTime:end,people:Math.max(1,parseInt(document.getElementById('ub-people').value)||1),space:document.getElementById('ub-space').value.trim(),amount,gstRate:18,gstAmount:Math.round(amount*18)/100,totalAmount:Math.round(amount*1.18*100)/100,paymentStatus:document.getElementById('ub-paystatus').value,paymentMethod:document.getElementById('ub-paymethod').value,status:normalizeBookingStatus(document.getElementById('ub-status').value),notes:document.getElementById('ub-notes').value.trim(),updatedAt:new Date().toISOString()};
  const ix=confBookings.findIndex(x=>x.id===id);
  const previous=ix>=0 ? {...confBookings[ix]} : null;
  if(ix>=0) confBookings[ix]=Object.assign({},confBookings[ix],data);
@@ -1710,7 +1794,7 @@ function renderUsagePage(){
  const upcoming=list.filter(b=>b.date>todayKey&&b.status!=='CANCELLED'&&b.status!=='COMPLETED'&&b.status!=='NO-SHOW').length,todayCount=list.filter(b=>b.date===todayKey&&b.status!=='CANCELLED'&&b.status!=='NO-SHOW').length,completed=list.filter(b=>b.status==='COMPLETED').length,pending=list.filter(b=>b.paymentStatus!=='Paid'&&b.status!=='CANCELLED').length,revenue=list.filter(b=>b.status!=='CANCELLED').reduce((s,b)=>s+Number(b.totalAmount??b.amount??0),0);
  document.getElementById('ub-sum-today').textContent=todayCount;document.getElementById('ub-sum-upcoming').textContent=upcoming;document.getElementById('ub-sum-completed').textContent=completed;document.getElementById('ub-sum-pending').textContent=pending;document.getElementById('ub-sum-revenue').textContent=fmtINR(revenue);
  const body=document.getElementById('usage-body'),empty=document.getElementById('usage-empty');if(!list.length){body.innerHTML='';empty.style.display='block';return;}empty.style.display='none';
- body.innerHTML=[...list].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(b=>`<tr><td>${fmtDate(b.date)}</td><td>${esc(b.type||'—')}</td><td><div class="occ-main">${esc(b.customer||'—')}</div><span class="occ-sub">${esc(b.contact||b.phone||'')}</span></td><td>${esc(b.space||'—')}</td><td>${esc((b.startTime||'')+(b.endTime?' – '+b.endTime:''))||'—'}</td><td>${b.people||1}</td><td>${fmtINR(b.totalAmount??b.amount??0)}</td><td>${esc(b.paymentStatus||'Pending')}</td><td>${esc(bookingStatusLabel(b.status))}</td><td><div class="row-actions"><button class="btn btn-sm" onclick="openUsageModal('${b.id}')">Edit</button></div></td></tr>`).join('');
+ body.innerHTML=[...list].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(b=>`<tr><td>${fmtDate(b.startDate||b.date)}${b.endDate&&b.endDate!==(b.startDate||b.date)?`<div class="occ-sub">to ${fmtDate(b.endDate)}</div>`:''}</td><td>${esc(b.type||'—')}</td><td><div class="occ-main">${esc(b.customer||'—')}</div><span class="occ-sub">${esc(b.contact||b.phone||'')}</span></td><td>${esc(b.space||'—')}</td><td>${esc((b.startTime||'')+(b.endTime?' – '+b.endTime:''))||'—'}</td><td>${b.people||1}</td><td>${fmtINR(b.totalAmount??b.amount??0)}</td><td>${esc(b.paymentStatus||'Pending')}</td><td>${esc(bookingStatusLabel(b.status))}</td><td><div class="row-actions"><button class="btn btn-sm" onclick="openUsageModal('${b.id}')">Edit</button></div></td></tr>`).join('');
 }
 
 // ══════════════════════════════════ PAYMENT EDITING ══════════════════════════════════
@@ -1754,7 +1838,7 @@ async function savePaymentEdit(){
  if(!dueDate){alert('Due date is required.');return;}
  const amenities=[...document.querySelectorAll('#pe-amenities-rows .pe-amenity-row')].map(row=>({name:row.querySelector('.pe-amenity-name')?.value.trim()||'',amount:Math.max(0,parseFloat(row.querySelector('.pe-amenity-amount')?.value)||0)})).filter(a=>a.name);
  const previous={...p,amenities:Array.isArray(p.amenities)?p.amenities.map(a=>({...a})):[]};
- p.baseAmount=amount;p.amountDue=amount;p.dueDate=dueDate;p.amenities=amenities;p.notes=document.getElementById('pe-notes').value.trim();p.editedAt=new Date().toISOString();
+ p.baseAmount=amount;p.amountDue=amount+amenities.reduce((s,a)=>s+Number(a.amount||0),0);p.dueDate=dueDate;p.amenities=amenities;p.notes=document.getElementById('pe-notes').value.trim();p.editedAt=new Date().toISOString();
  try{
    await savePayments({throwOnFailure:true});
    closePaymentEditModal();
@@ -3988,7 +4072,49 @@ function renderActivities(l){
   const acts = [...(l.activities||[])].reverse();
   el.innerHTML = acts.length ? acts.map(a=>`<div class="activity-item"><span class="activity-type">${esc(a.type)}</span><div class="activity-body">${esc(a.notes)}<div class="activity-date">${fmtDate(a.date)}</div></div></div>`).join('') : '<div style="color:var(--text3);font-size:12px;">No activity logged yet.</div>';
 }
-function saveLead(){
+async function importLeadsExcelFile(input){
+  if(typeof XLSX==='undefined'){alert('Excel library failed to load.');return;}
+  const file=input?.files?.[0]; if(!file)return;
+  try{
+    const wb=XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:'array',cellDates:true});
+    const sheetName=wb.SheetNames[0], ws=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+    if(!rows.length){alert('The selected Excel file contains no data rows.');return;}
+    const aliases={
+      name:['name','lead name','contact name'],
+      company:['company','company name','organisation','organization'],
+      phone:['phone','mobile','mobile number','contact number'],
+      email:['email','email address'],
+      source:['source','lead source'],
+      stage:['stage','status'],
+      seats:['seats','seats interested','number of seats'],
+      nextFollowUp:['next follow-up','next follow up','follow-up date','follow up date'],
+      notes:['notes','remarks','comments'],
+      agencyName:['agency name','agency']
+    };
+    const keyFor=(obj,names)=>{const keys=Object.keys(obj);return keys.find(k=>names.includes(String(k).trim().toLowerCase()));};
+    const parsed=rows.map((r,index)=>{
+      const get=(field)=>{const k=keyFor(r,aliases[field]);return k==null?'':String(r[k]??'').trim();};
+      const name=get('name'); if(!name)throw new Error(`Row ${index+2}: Name is required.`);
+      const source=get('source')||'Other', stage=get('stage')||'New';
+      if(!LEAD_SOURCES.includes(source))throw new Error(`Row ${index+2}: Invalid source "${source}".`);
+      if(!LEAD_STAGES.includes(stage))throw new Error(`Row ${index+2}: Invalid stage "${stage}".`);
+      return {name,company:get('company'),phone:get('phone'),email:get('email'),source,stage,seats:Math.max(1,parseInt(get('seats'))||1),nextFollowUp:get('nextFollowUp')||null,notes:get('notes'),agencyName:source==='Agency'?get('agencyName'):''};
+    });
+    const preview=parsed.slice(0,10).map((r,i)=>`${i+1}. ${r.name} — ${r.company||'No company'} — ${r.source} — ${r.stage}`).join('\n');
+    const extra=parsed.length>10?`\n… and ${parsed.length-10} more row(s).`:'';
+    if(!confirm(`Preview (${parsed.length} lead(s)):\n\n${preview}${extra}\n\nImport these records?`))return;
+    let added=0,updated=0;
+    parsed.forEach(r=>{
+      const existing=leads.find(l=>(r.email&&l.email&&l.email.toLowerCase()===r.email.toLowerCase())||(r.phone&&l.phone&&l.phone===r.phone));
+      if(existing){Object.assign(existing,r);updated++;}else{leads.push({id:'lead-'+Date.now()+'-'+added,...r,created:today(),activities:[]});added++;}
+    });
+    await saveLeads({throwOnFailure:true});
+    input.value='';refreshAll();
+    alert(`Lead import successful. Added: ${added}. Updated: ${updated}.`);
+  }catch(e){console.error('Lead Excel import failed:',e);alert(e.message||'Lead Excel import failed.');}
+}
+async function saveLead(){
   const id = document.getElementById('ld-id').value;
   const name = document.getElementById('ld-name').value.trim();
   if(!name){ alert('Lead name is required.'); return; }
@@ -4001,13 +4127,22 @@ function saveLead(){
     notes: document.getElementById('ld-notes').value.trim(),
     agencyName: source==='Agency' ? document.getElementById('ld-agency-name').value.trim() : ''
   };
+  const previous = leads.map(l=>({...l,activities:Array.isArray(l.activities)?l.activities.map(a=>({...a})):[]}));
   if(id){
     const l = leads.find(l=>l.id===id);
+    if(!l){alert('Lead record not found. Refresh and try again.');return;}
     Object.assign(l, data);
   } else {
     leads.push({ id:'lead-'+Date.now(), ...data, created: today(), activities:[] });
   }
-  saveLeads(); closeLeadModal(); refreshAll();
+  try{
+    await saveLeads({throwOnFailure:true});
+    closeLeadModal(); refreshAll();
+    alert(id?'Lead updated successfully.':'Lead saved successfully.');
+  }catch(e){
+    leads=previous;
+    alert(e.message||'Unable to save lead. Please try again.');
+  }
 }
 function deleteLeadFromModal(){
   const id = document.getElementById('ld-id').value;
