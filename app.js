@@ -4503,10 +4503,24 @@ async function uploadDocumentToDrive(file, options={}){
     const initJson=await init.json().catch(()=>({}));
     if(!init.ok||!initJson.sessionUrl)throw new Error(initJson?.error?.message||'Could not start Google Drive upload.');
 
-    const upload=await fetch(initJson.sessionUrl,{method:'PUT',headers:{'Content-Length':String(file.size)},body:file});
-    if(!upload.ok)throw new Error(`Google Drive upload failed (${upload.status}).`);
-    const driveFile=await upload.json().catch(()=>({}));
-    if(!driveFile.id)throw new Error('Google Drive did not return a file id.');
+    // Do not PUT directly to Google's cross-origin resumable URL from the browser.
+    // Proxy small chunks through our own Vercel API to avoid browser CORS failures.
+    const CHUNK_SIZE = 1024 * 1024;
+    let driveFile = null;
+    for(let start=0; start<file.size; start+=CHUNK_SIZE){
+      const end=Math.min(file.size,start+CHUNK_SIZE);
+      const chunk=await file.slice(start,end).arrayBuffer();
+      let binary='';
+      const bytes=new Uint8Array(chunk);
+      const STEP=0x8000;
+      for(let i=0;i<bytes.length;i+=STEP) binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+STEP,bytes.length)));
+      const chunkBase64=btoa(binary);
+      const part=await fetch('/api/documents',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'uploadChunk',sessionUrl:initJson.sessionUrl,mime:file.type,start,total:file.size,chunkBase64})});
+      const partJson=await part.json().catch(()=>({}));
+      if(!part.ok||!partJson.success)throw new Error(partJson?.error?.message||`Google Drive upload failed (${part.status}).`);
+      if(partJson.completed)driveFile=partJson.data||null;
+    }
+    if(!driveFile?.id)throw new Error('Google Drive did not return a file id after upload.');
 
     const finish=await fetch('/api/documents',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'finalizeUpload',googleDriveFileId:driveFile.id,name:file.name,mime:file.type,size:file.size,occupantId:options.occupantId||'',documentType:options.documentType||options.category||'Other',notes:options.notes||''})});
     const finishJson=await finish.json().catch(()=>({}));

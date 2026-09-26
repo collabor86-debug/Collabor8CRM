@@ -49,8 +49,8 @@
   <div class="nav-section">Operations</div>
   <div class="nav-item" onclick="showPage('occupants',this)"><span class="nav-icon">◎</span> Occupants</div>
   <div class="nav-item" onclick="showPage('vacated',this)"><span class="nav-icon">↪</span> Vacated Clients</div>
-  <div class="nav-item" onclick="showPage('virtualoffice',this)"><span class="nav-icon">◇</span> Virtual Office</div>
-  <div class="nav-item" onclick="showPage('usage',this)"><span class="nav-icon">⏱</span> Usage &amp; Bookings</div>
+  <!-- <div class="nav-item" onclick="showPage('virtualoffice',this)"><span class="nav-icon">◇</span> Virtual Office</div>
+  <div class="nav-item" onclick="showPage('usage',this)"><span class="nav-icon">⏱</span> Usage &amp; Bookings</div> -->
   <div class="nav-item" onclick="showPage('payments',this)"><span class="nav-icon">₹</span> Payments
     <span style="margin-left:auto;background:var(--amber-dim);color:var(--amber);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;" id="due-count-nav">0</span>
   </div>
@@ -308,7 +308,7 @@
 </div>
 
 <!-- VIRTUAL OFFICE MODAL -->
-<div class="modal-overlay" id="virtualOfficeModal">
+<!-- <div class="modal-overlay" id="virtualOfficeModal">
   <div class="modal" style="width:620px;max-height:90vh;overflow-y:auto;">
     <div class="modal-title"><span id="vo-modal-title">New Virtual Office Client</span><span class="modal-close" onclick="closeVirtualOfficeModal()">✕</span></div>
     <input type="hidden" id="vo-id"/>
@@ -333,10 +333,10 @@
     </div>
     <div class="modal-actions"><button class="btn" onclick="closeVirtualOfficeModal()">Cancel</button><button class="btn btn-primary" onclick="saveVirtualOfficeClient()">Save Client</button></div>
   </div>
-</div>
+</div> -->
 
 <!-- USAGE & BOOKINGS MODAL -->
-<div class="modal-overlay" id="usageModal">
+<!-- <div class="modal-overlay" id="usageModal">
   <div class="modal" style="width:620px;max-height:90vh;overflow-y:auto;">
     <div class="modal-title"><span id="usage-modal-title">New Booking</span><span class="modal-close" onclick="closeUsageModal()">✕</span></div>
     <input type="hidden" id="ub-id"/>
@@ -410,7 +410,7 @@
       </div>
     </div>
   </div>
-</div>
+</div> -->
 
 <!-- INVOICE EDIT MODAL -->
 <div class="modal-overlay" id="invoiceModal">

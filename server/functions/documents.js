@@ -30,6 +30,29 @@ async function audit(user,action,entity,id,oldValue='',newValue=''){
   await googleJson(`https://sheets.googleapis.com/v4/spreadsheets/${sid}/values/${range}?valueInputOption=USER_ENTERED`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({majorDimension:'ROWS',values})});
 }
 
+async function uploadResumableChunk(sessionUrl, chunk, start, total, mime){
+  const end = start + chunk.length - 1;
+  const r = await fetch(sessionUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Length': String(chunk.length),
+      'Content-Type': mime,
+      'Content-Range': `bytes ${start}-${end}/${total}`
+    },
+    body: chunk
+  });
+  const text = await r.text().catch(() => '');
+  if (r.status === 308) {
+    return { completed: false, range: r.headers.get('range') || '', status: r.status };
+  }
+  if (!r.ok) {
+    throw new Error(text || `Google Drive chunk upload failed (${r.status})`);
+  }
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch {}
+  return { completed: true, data, status: r.status };
+}
+
 async function initiateResumableUpload(name,mime,size,folder){
   const token=await serviceAccountToken('https://www.googleapis.com/auth/drive');
   const metadata={name,mimeType:mime}; if(folder) metadata.parents=[folder];
@@ -95,6 +118,18 @@ export async function handler(event){
   }
 
   if(b.action==='finalizeUpload')return await recordDriveDocument(user,b);
+
+  if(b.action==='uploadChunk'){
+    if(!b.sessionUrl || !b.mime || !Number.isFinite(Number(b.start)) || !Number.isFinite(Number(b.total)) || !b.chunkBase64)
+      return fail(400,'VALIDATION_ERROR','Upload session, chunk, start and total size are required.');
+    const start=Number(b.start), total=Number(b.total);
+    const chunk=Buffer.from(String(b.chunkBase64),'base64');
+    if(!chunk.length)return fail(400,'VALIDATION_ERROR','Upload chunk is empty.');
+    if(start<0 || total<=0 || start>=total || start+chunk.length>total)return fail(400,'VALIDATION_ERROR','Invalid upload chunk range.');
+    if(!TYPES.has(String(b.mime)))return fail(400,'INVALID_FILE_TYPE','Only PDF, JPG and PNG files are allowed.');
+    const result=await uploadResumableChunk(String(b.sessionUrl),chunk,start,total,String(b.mime));
+    return response(200,{success:true,...result});
+  }
 
   if(b.action==='delete'){
     if(!b.id)return fail(400,'VALIDATION_ERROR','Document id required.');
