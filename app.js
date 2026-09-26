@@ -875,6 +875,44 @@ async function loadFromSheet(tab){
 // right after a successful login (see enterApp() in the AUTH section above), since
 // sheet-store.js now requires a valid session before it will return any data. Safe
 // to call again any time (e.g. wire a "Sync now" button to it).
+function cabinCapacity(c){
+  const n=Number(c?.seater);
+  return Number.isFinite(n)&&n>0?n:0;
+}
+function normalizeCabinRecord(row){
+  return {...row,id:String(row?.id||'').trim(),floor:String(row?.floor||'').trim(),seater:cabinCapacity(row),sno:Number(row?.sno)||0,occupied:false,occupantId:null,occupantName:null,note:String(row?.note||'')};
+}
+function isCabinOccupied(c){
+  if(!c||!Array.isArray(occupants)) return false;
+  return occupants.some(o=>Array.isArray(o.cabins)&&o.cabins.some(id=>String(id).trim()===String(c.id).trim()));
+}
+function allocatedSeatsForCabin(c){
+  const cap=cabinCapacity(c); if(!cap||!Array.isArray(occupants)) return 0;
+  const o=occupants.find(x=>Array.isArray(x.cabins)&&x.cabins.some(id=>String(id).trim()===String(c.id).trim()));
+  if(!o) return 0;
+  const n=Number(o.seatAllocations?.[c.id]);
+  return Number.isFinite(n)&&n>0?Math.min(n,cap):cap;
+}
+function reconcileCabinOccupancy({persist=false}={}){
+  let changed=false;
+  cabins.forEach(c=>{
+    const old=!!c.occupied||c.occupantId!=null||c.occupantName!=null;
+    c.occupied=false;c.occupantId=null;c.occupantName=null;
+    if(old) changed=true;
+  });
+  const assigned=new Set();
+  (Array.isArray(occupants)?occupants:[]).forEach(o=>{
+    const oid=String(o.id||'').trim(); if(!oid)return;
+    (Array.isArray(o.cabins)?o.cabins:[]).forEach(raw=>{
+      const cid=String(raw||'').trim(); if(!cid||assigned.has(cid))return;
+      const c=cabins.find(x=>String(x.id)===cid); if(!c)return;
+      assigned.add(cid);c.occupied=true;c.occupantId=oid;c.occupantName=String(o.name||'').trim()||null;
+    });
+  });
+  if(persist&&changed) saveCabins();
+  return changed;
+}
+
 async function syncAllFromSheets(){
   const [c, o, p, inv, l, q, vo, bk, d, settingsRows, vac] = await Promise.all([
     loadFromSheet('cabins'), loadFromSheet('occupants'), loadFromSheet('payments'),
@@ -882,56 +920,19 @@ async function syncAllFromSheets(){
     loadFromSheet('virtual_office'), loadFromSheet('bookings'), loadFromSheet('documents'), loadFromSheet('settings'),
     loadFromSheet('vacated_clients')
   ]);
-  if (Array.isArray(c)) {
-    cabins = c.map(row => ({
-      ...row,
-
-      // Always store cabin capacity as a number
-      seater: Number(row.seater) || 0,
-
-      // Convert Google Sheets TRUE/FALSE text into real booleans
-      occupied:
-        row.occupied === true ||
-        row.occupied === 1 ||
-        row.occupied === '1' ||
-        String(row.occupied).trim().toLowerCase() === 'true',
-
-      // Keep IDs and names as strings
-      id: String(row.id || '').trim(),
-      floor: String(row.floor || '').trim(),
-
-      sno: Number(row.sno) || 0,
-
-      occupantId:
-        row.occupantId == null || row.occupantId === ''
-          ? null
-          : String(row.occupantId).trim(),
-
-      occupantName:
-        row.occupantName == null || row.occupantName === ''
-          ? null
-          : String(row.occupantName).trim(),
-
-      note: String(row.note || '')
-    }));
-  }
+  if (c && c.length) cabins = c.map(normalizeCabinRecord);
   occupants = Array.isArray(o) ? o.map(normalizeOccupantRecord) : [];
-  const cabinStateBeforeRepair = JSON.stringify(c);
-  reconcileCabinOccupancy();
-  // Persist automatic repairs so a page refresh does not restore stale
-  // occupied flags from Google Sheets. Owner/read-only sessions never mutate.
-  if(currentUser?.role !== 'owner' && JSON.stringify(cabins) !== cabinStateBeforeRepair){
-    await syncToSheet('cabins', cabins);
-  }
+  // Occupant records are the source of truth. Repair stale occupied flags in Sheets.
+  reconcileCabinOccupancy({persist:true});
   payments = Array.isArray(p) ? p : [];
   invoices = Array.isArray(inv) ? inv : [];
   leads = Array.isArray(l) ? l : [];
   quotations = Array.isArray(q) ? q : [];
   virtualOffice = Array.isArray(vo) ? vo : [];
   confBookings = Array.isArray(bk) ? bk : [];
-  documents = Array.isArray(d) ? d.map(x=>Object.assign(x,{linkedOccupantId:x.linkedOccupantId||x.occupantId||null,name:x.name||x.fileName,uploaded:x.uploaded||x.uploadedAt,category:x.category||x.documentType||'Other'})) : defaultDocuments();
+  documents = (d && d.length) ? d.map(x=>Object.assign(x,{linkedOccupantId:x.linkedOccupantId||x.occupantId||null,name:x.name||x.fileName,uploaded:x.uploaded||x.uploadedAt,category:x.category||x.documentType||'Other'})) : defaultDocuments();
   vacatedClients = Array.isArray(vac) ? vac.map(normalizeVacatedRecord) : [];
-  appSettings = (Array.isArray(settingsRows) && settingsRows.length && settingsRows[0]) ? Object.assign({}, DEFAULT_SETTINGS, settingsRows[0]) : Object.assign({}, DEFAULT_SETTINGS);
+  appSettings = (settingsRows && settingsRows.length && settingsRows[0]) ? Object.assign({}, DEFAULT_SETTINGS, settingsRows[0]) : Object.assign({}, DEFAULT_SETTINGS);
   applyTheme(appSettings.theme || 'dark');
   if(typeof refreshAll === 'function') refreshAll();
 }
@@ -1034,36 +1035,15 @@ function normalizeVacatedRecord(v){
 }
 function getStatus(o){ const dl=daysLeft(o.end); if(dl<0) return 'expired'; if(dl<=30) return 'expiring'; return 'active'; }
 function cabinsOf(floor){ return cabins.filter(c=>c.floor===floor); }
-function reconcileCabinOccupancy(){
-  cabins.forEach(c=>{ c.occupied=false; c.occupantId=null; c.occupantName=null; });
-  const assigned=new Set();
-  occupants.forEach(o=>{
-    const valid=[];
-    (o.cabins||[]).forEach(cid=>{
-      const c=cabins.find(x=>x.id===cid);
-      if(!c || assigned.has(cid)) return;
-      assigned.add(cid); valid.push(cid);
-      c.occupied=true; c.occupantId=o.id; c.occupantName=o.name||null;
-    });
-    o.cabins=valid;
-    const alloc={};
-    valid.forEach(cid=>{
-      const c=cabins.find(x=>x.id===cid), n=Number(o.seatAllocations?.[cid]);
-      if(c && Number.isFinite(n) && n>0) alloc[cid]=Math.min(Math.floor(n),Number(c.seater)||0);
-    });
-    o.seatAllocations=alloc;
-  });
+function totalSeats(){ return cabins.reduce((sum,c)=>sum+cabinCapacity(c),0); }
+function occupiedSeats(){ return cabins.reduce((sum,c)=>sum+allocatedSeatsForCabin(c),0); }
+function occupantSeatCount(o){
+  return (Array.isArray(o?.cabins)?o.cabins:[]).reduce((sum,id)=>{
+    const c=cabins.find(x=>String(x.id)===String(id)); if(!c)return sum;
+    const cap=cabinCapacity(c),n=Number(o.seatAllocations?.[c.id]);
+    return sum+(Number.isFinite(n)&&n>0?Math.min(n,cap):cap);
+  },0);
 }
-function cabinOccupiedSeats(c){
-  if(!c?.occupied || !c.occupantId) return 0;
-  const capacity=Math.max(0,Number(c.seater)||0);
-  const linked=occupants.find(o=>o.id===c.occupantId);
-  if(!linked) return 0;
-  const allocated=Number(linked.seatAllocations?.[c.id]);
-  return Math.min(capacity,Number.isFinite(allocated)&&allocated>0?Math.floor(allocated):capacity);
-}
-function totalSeats(){ return cabins.reduce((s,c)=>s+Math.max(0,Number(c.seater)||0),0); }
-function occupiedSeats(){ return cabins.reduce((s,c)=>s+cabinOccupiedSeats(c),0); }
 function fmtBytes(n){ if(n>1024*1024) return (n/1024/1024).toFixed(2)+' MB'; if(n>1024) return (n/1024).toFixed(1)+' KB'; return n+' B'; }
 
 // ══════════════════════════════════ FLOOR SUMMARY (DASHBOARD) ══════════════════════════════════
@@ -1072,9 +1052,9 @@ function renderFloorSummaryCards(){
   el.innerHTML = FLOORS.map(floor=>{
     const list = cabinsOf(floor);
     const seatTotal = list.reduce((s,c) => s + (Number(c.seater) || 0), 0);
-    const occSeats = list.reduce((s,c)=>s+cabinOccupiedSeats(c),0);
+    const occSeats = list.reduce((s,c)=>s+allocatedSeatsForCabin(c),0);
     const cabinCount = list.length;
-    const occCabins = list.filter(c=>c.occupied).length;
+    const occCabins = list.filter(isCabinOccupied).length;
     const pct = seatTotal ? Math.round(occSeats/seatTotal*100) : 0;
     return `<div class="floor-card">
       <div class="floor-card-head"><div class="floor-card-name">${floor}</div><div class="floor-card-seats">${seatTotal} seats</div></div>
@@ -1088,7 +1068,7 @@ function renderFloorSummaryCards(){
 // ══════════════════════════════════ FLOOR PAGE ══════════════════════════════════
 function renderFloorTabs(){
   const el = document.getElementById('floor-tabs');
-  el.innerHTML = FLOORS.map(f=>`<div class="tab ${f===floorCurrent?'active':''}" data-floor="${esc(f)}" onclick="switchFloor(this.dataset.floor)">${esc(f)}</div>`).join('');
+  el.innerHTML = FLOORS.map(f=>`<div class="tab ${f===floorCurrent?'active':''}" onclick="switchFloor('${f}')">${f}</div>`).join('');
 }
 function switchFloor(f){ floorCurrent=f; floorFilter='all'; renderFloorPage(); }
 
@@ -1112,7 +1092,7 @@ function renderCapacitySummary(){
 
 function renderFloorFilters(){
   const list = cabinsOf(floorCurrent);
-  const occ = list.filter(c=>c.occupied).length;
+  const occ = list.filter(isCabinOccupied).length;
   const vac = list.length-occ;
   document.getElementById('floor-filters').innerHTML = `
     <button class="filter-btn ${floorFilter==='all'?'active':''}" onclick="setFloorFilter('all')">All (${list.length})</button>
@@ -1125,14 +1105,14 @@ function renderFloorGrid(){
   const q = (document.getElementById('floor-search')?.value||'').toLowerCase();
   const grid = document.getElementById('floor-ws-grid');
   let list = cabinsOf(floorCurrent);
-  if(floorFilter==='occupied') list = list.filter(c=>c.occupied);
-  if(floorFilter==='vacant') list = list.filter(c=>!c.occupied);
+  if(floorFilter==='occupied') list = list.filter(isCabinOccupied);
+  if(floorFilter==='vacant') list = list.filter(c=>!isCabinOccupied(c));
   if(q) list = list.filter(c=> c.id.toLowerCase().includes(q) || (c.occupantName||'').toLowerCase().includes(q));
   grid.innerHTML = '';
   list.forEach(c=>{
     const cell = document.createElement('div');
-    cell.className = 'ws-cell ' + (c.occupied?'occupied':'vacant');
-    cell.innerHTML = `<div>${esc(c.id)}</div><div class="cell-seater">${esc(c.seater)}-seat</div>`;
+    cell.className = 'ws-cell ' + (isCabinOccupied(c)?'occupied':'vacant');
+    cell.innerHTML = `<div>${c.id}</div><div class="cell-seater">${c.seater}-seat</div>`;
     cell.addEventListener('mouseenter', e=>showCabinTooltip(e,c));
     cell.addEventListener('mouseleave', ()=>document.getElementById('tooltip').style.display='none');
     cell.addEventListener('click', ()=>openCabinModal(c.id));
@@ -1142,10 +1122,10 @@ function renderFloorGrid(){
 function showCabinTooltip(e,c){
   const tt = document.getElementById('tooltip');
   document.getElementById('tt-id').textContent = c.id + ' · ' + c.floor;
-  document.getElementById('tt-name').textContent = c.occupied ? (c.occupantName||'Occupied') : 'Vacant';
+  document.getElementById('tt-name').textContent = isCabinOccupied(c) ? (c.occupantName||'Occupied') : 'Vacant';
   document.getElementById('tt-company').textContent = c.seater + '-seater cabin';
   document.getElementById('tt-exp').textContent = '';
-  document.getElementById('tt-rent').textContent = c.occupied ? '' : ('Base: ₹'+(c.seater*RATE_PER_SEAT).toLocaleString('en-IN')+' / month + GST');
+  document.getElementById('tt-rent').textContent = isCabinOccupied(c) ? '' : ('Base: ₹'+(cabinCapacity(c)*RATE_PER_SEAT).toLocaleString('en-IN')+' / month + GST');
   tt.style.display='block';
   tt.style.left = Math.min(e.clientX+12, window.innerWidth-210)+'px';
   tt.style.top = (e.clientY-20)+'px';
@@ -1161,7 +1141,7 @@ function renderSeatingTable(){
       <td>${i+1}</td>
       <td><input class="table-input" value="${c.id}" onchange="renameCabin('${c.id}', this.value)" style="max-width:110px;"/></td>
       <td><input class="table-input" type="number" min="1" value="${c.seater}" onchange="resizeCabin('${c.id}', this.value)" style="max-width:80px;"/></td>
-      <td><span class="toggle-yn ${c.occupied?'yes':'no'}" onclick="toggleCabinOccupied('${c.id}')">${c.occupied?'Yes':'No'}</span></td>
+      <td><span class="toggle-yn ${isCabinOccupied(c)?'yes':'no'}" onclick="toggleCabinOccupied('${c.id}')">${isCabinOccupied(c)?'Yes':'No'}</span></td>
       <td style="font-size:12px;color:var(--text3);">${c.occupantName||'—'}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteCabin('${c.id}')">Delete</button></td>
     </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3);">No cabins match.</td></tr>';
@@ -1182,23 +1162,17 @@ function resizeCabin(id, val){
   c.seater = n; saveCabins(); refreshAll();
 }
 function toggleCabinOccupied(id){
-  const c = cabins.find(c=>c.id===id);
-  if(!c) return;
-  if(c.occupied && c.occupantId){
-    openVacatedModal(c.occupantId);
-    return;
-  }
-  c.occupied = !c.occupied;
-  if(!c.occupied){ c.occupantId=null; c.occupantName=null; }
+  const c=cabins.find(x=>x.id===id); if(!c)return;
+  const linked=(Array.isArray(occupants)?occupants:[]).find(o=>Array.isArray(o.cabins)&&o.cabins.some(cid=>String(cid)===String(id)));
+  if(linked){ openVacatedModal(linked.id); return; }
+  c.occupied=false; c.occupantId=null; c.occupantName=null;
   saveCabins(); refreshAll();
 }
-async function deleteCabin(id){
+function deleteCabin(id){
   if(!confirm('Delete cabin '+id+'? This cannot be undone.')) return;
-  const nextCabins=cabins.filter(c=>c.id!==id);
-  const nextOccupants=occupants.map(o=>({...o,cabins:(o.cabins||[]).filter(cid=>cid!==id),seatAllocations:Object.fromEntries(Object.entries(o.seatAllocations||{}).filter(([cid])=>cid!==id))}));
-  const [cabinsOk,occupantsOk]=await Promise.all([syncToSheet('cabins',nextCabins),syncToSheet('occupants',nextOccupants)]);
-  if(!cabinsOk||!occupantsOk){alert('The cabin could not be deleted completely from Google Sheets. No local changes were applied.');return;}
-  cabins=nextCabins; occupants=nextOccupants; reconcileCabinOccupancy(); refreshAll();
+  const linked=(Array.isArray(occupants)?occupants:[]).filter(o=>Array.isArray(o.cabins)&&o.cabins.some(cid=>String(cid)===String(id)));
+  if(linked.length){alert('This cabin is assigned to '+linked.map(o=>o.name||o.id).join(', ')+'. Vacate the occupant first.');return;}
+  cabins=cabins.filter(c=>c.id!==id);saveCabins();refreshAll();
 }
 function openAddCabin(){
   const id = prompt('New Cabin ID (e.g. F13, S13, T13):');
@@ -1218,11 +1192,11 @@ function openCabinModal(id){
   document.getElementById('cm-title').textContent = c.id + ' — ' + c.floor;
   document.getElementById('cm-body').innerHTML = `
     <div>Capacity: <strong style="color:var(--text)">${c.seater} seat${c.seater>1?'s':''}</strong></div>
-    <div>Status: <strong style="color:${c.occupied?'var(--teal)':'var(--text3)'}">${c.occupied?'Occupied':'Vacant'}</strong></div>
-    ${c.occupied?`<div>Occupant: <strong style="color:var(--text)">${c.occupantName||'—'}</strong></div>`:''}
+    <div>Status: <strong style="color:${isCabinOccupied(c)?'var(--teal)':'var(--text3)'}">${isCabinOccupied(c)?'Occupied':'Vacant'}</strong></div>
+    ${isCabinOccupied(c)?`<div>Occupant: <strong style="color:var(--text)">${c.occupantName||'—'}</strong></div>`:''}
     ${c.note?`<div style="color:var(--text3);font-size:12px;">${c.note}</div>`:''}
     <div>Base rate: <strong style="color:var(--gold)">₹${(c.seater*RATE_PER_SEAT).toLocaleString('en-IN')}</strong> / month + GST</div>`;
-  document.getElementById('cm-actions').innerHTML = c.occupied
+  document.getElementById('cm-actions').innerHTML = isCabinOccupied(c)
     ? `<button class="btn" onclick="closeCabinModal()">Close</button><button class="btn btn-danger" onclick="toggleCabinOccupied('${c.id}');closeCabinModal();">Mark Vacant</button>`
     : `<button class="btn" onclick="closeCabinModal()">Close</button><button class="btn btn-primary" onclick="closeCabinModal(); showPage('add',null); setAddFloorFilter('${c.floor}'); document.getElementById('a-cabin-search').value='${c.id}'; renderAddCabinChoices();">Lease this cabin</button>`;
   document.getElementById('cabinModal').classList.add('open');
@@ -1241,21 +1215,12 @@ function renderDashGrid(){
   container.innerHTML = FLOORS.map(floor=>{
     const list = cabinsOf(floor);
     const seatTotal = list.reduce((s,c) => s + (Number(c.seater) || 0), 0);
-    const occSeats = list.reduce((s,c)=>{
-      if(!c.occupied) return s;
-
-      const capacity = Number(c.seater) || 0;
-      const o = occupants.find(x=>x.id===c.occupantId);
-      const allocated = o && o.seatAllocations ? Number(o.seatAllocations[c.id]) : 0;
-      const used = allocated > 0 ? allocated : capacity;
-
-      return s + Math.min(used, capacity);
-    },0);
+    const occSeats = list.reduce((s,c)=>s+allocatedSeatsForCabin(c),0);
     const vacantSeats = Math.max(0,seatTotal-occSeats);
-    const vacantCabins = list.filter(c=>!c.occupied).length;
+    const vacantCabins = list.filter(c=>!isCabinOccupied(c)).length;
     const pct = seatTotal ? Math.round(occSeats/seatTotal*100) : 0;
 
-    const cells = list.map(c=>`<div class="ws-cell ${c.occupied?'occupied':'vacant'} dash-floor-cell" data-floor="${esc(floor)}" data-cabin="${esc(c.id)}">
+    const cells = list.map(c=>`<div class="ws-cell ${isCabinOccupied(c)?'occupied':'vacant'} dash-floor-cell" data-floor="${esc(floor)}" data-cabin="${esc(c.id)}">
       <div>${esc(c.id)}</div><div class="cell-seater">${c.seater}-seat</div>
     </div>`).join('');
 
@@ -1478,14 +1443,10 @@ function renderSeatAllocationEditor(containerId, cabinIds, allocations){
 }
 function collectSeatAllocations(containerId){const out={};document.querySelectorAll('#'+containerId+' [data-seat-cabin]').forEach(i=>{const c=i.dataset.seatCabin;const cabin=cabins.find(x=>x.id===c);out[c]=Math.max(0,Math.min(parseInt(i.value)||0,cabin?cabin.seater:0));});return out;}
 function onSeatAllocationChange(){ const ids=selectedAddCabins(); let total=0; document.querySelectorAll('#a-seat-allocation [data-seat-cabin]').forEach(i=>total+=parseInt(i.value)||0); document.getElementById('a-sum-seats').textContent=total; }
-async function deleteOccupant(id){
+function deleteOccupant(id){
   if(!confirm('Remove this occupant and free their cabin(s)? This cannot be undone.')) return;
-  const o=occupants.find(x=>x.id===id); if(!o)return;
-  const nextOccupants=occupants.filter(x=>x.id!==id);
-  const nextCabins=cabins.map(c=>((o.cabins||[]).includes(c.id)||c.occupantId===id)?{...c,occupied:false,occupantId:null,occupantName:null}:c);
-  const [occupantsOk,cabinsOk]=await Promise.all([syncToSheet('occupants',nextOccupants),syncToSheet('cabins',nextCabins)]);
-  if(!occupantsOk||!cabinsOk){alert('The occupant could not be completely removed from Google Sheets. No local changes were applied. Please refresh and try again.');return;}
-  occupants=nextOccupants; cabins=nextCabins; reconcileCabinOccupancy(); refreshAll();
+  const o=occupants.find(x=>x.id===id); if(o)(o.cabins||[]).forEach(cid=>{const c=cabins.find(x=>x.id===cid);if(c){c.occupied=false;c.occupantId=null;c.occupantName=null;}});
+  occupants=occupants.filter(x=>x.id!==id);saveCabins();saveOccupants();refreshAll();
 }
 function syncEditSeatAllocationFields(){ const ids=(document.getElementById('eo-ws').value||'').split(',').map(s=>s.trim()).filter(Boolean); renderSeatAllocationEditor('eo-seat-allocation',ids,collectSeatAllocations('eo-seat-allocation')); }
 function openEditOccModal(id){
@@ -4254,7 +4215,7 @@ function renderAddCabinChoices(){
   const search = (document.getElementById('a-cabin-search')?.value || '').trim().toUpperCase();
   let list = cabins.filter(c=>{
     if(addFloorFilter!=='all' && c.floor!==addFloorFilter) return false;
-    if(addAvailOnly && c.occupied) return false;
+    if(addAvailOnly && isCabinOccupied(c)) return false;
     if(search && !c.id.toUpperCase().includes(search)) return false;
     return true;
   });
@@ -4262,15 +4223,15 @@ function renderAddCabinChoices(){
   grid.innerHTML = list.length ? list.map(c=>{
     const selected = selectedAddCabinIds.has(c.id);
     const rent = c.seater*RATE_PER_SEAT;
-    return `<div class="cabin-card ${selected?'selected':''} ${c.occupied?'occupied-card':''}" onclick="toggleAddCabin('${c.id}')">
+    return `<div class="cabin-card ${selected?'selected':''} ${isCabinOccupied(c)?'occupied-card':''}" onclick="toggleAddCabin('${c.id}')">
       <div class="cabin-card-top">
         <div class="cabin-card-id">${c.id}</div>
         <div class="cabin-card-toggle">${selected?'✓':''}</div>
       </div>
       <div class="cabin-card-floor">${c.floor}</div>
       <div class="cabin-card-meta"><span>${c.seater} Seat${c.seater>1?'s':''}</span><span class="cabin-card-rent">₹${rent.toLocaleString('en-IN')}/mo</span></div>
-      <div class="cabin-card-status" style="${c.occupied?'color:var(--red)':''}">
-        <div class="cabin-card-status-dot" style="${c.occupied?'background:var(--red)':''}"></div>${c.occupied?'Occupied':'Available'}
+      <div class="cabin-card-status" style="${isCabinOccupied(c)?'color:var(--red)':''}">
+        <div class="cabin-card-status-dot" style="${isCabinOccupied(c)?'background:var(--red)':''}"></div>${isCabinOccupied(c)?'Occupied':'Available'}
       </div>
     </div>`;
   }).join('') : '<div style="grid-column:1/-1;color:var(--text3);font-size:12px;padding:20px;text-align:center;">No cabins match this search/filter.</div>';
@@ -4279,7 +4240,7 @@ function renderAddCabinChoices(){
 }
 function toggleAddCabin(id){
   const c = cabins.find(c=>c.id===id);
-  if(c && c.occupied) return; // occupied cabins aren't selectable even if shown (available-only off)
+  if(c && isCabinOccupied(c)) return; // occupied cabins aren't selectable
   if(selectedAddCabinIds.has(id)) { selectedAddCabinIds.delete(id); if(window.addSeatAllocations) delete window.addSeatAllocations[id]; } else { selectedAddCabinIds.add(id); window.addSeatAllocations=window.addSeatAllocations||{}; window.addSeatAllocations[id]=c.seater; }
   renderAddCabinChoices();
 }
@@ -4314,6 +4275,8 @@ function onManualParkingRevenueChange(){ const el=document.getElementById('f2-pa
 function autofillEnd(){const startVal=readAgreementDate('f2-start');if(!startVal)return;const dt=new Date(startVal+'T00:00:00');dt.setMonth(dt.getMonth()+11);document.getElementById('f2-end').value=formatDateDDMMYYYY(dt.toISOString().slice(0,10));}
 async function saveFromPage(){
   const ids=selectedAddCabins(),name=document.getElementById('f2-name').value.trim();if(!ids.length||!name){alert('Select at least one cabin and enter the occupant name.');return;}
+  const unavailable=ids.filter(id=>isCabinOccupied(cabins.find(c=>c.id===id)));
+  if(unavailable.length){alert('These cabin(s) are already assigned: '+unavailable.join(', ')+'. Refresh and choose vacant cabin(s).');return;}
   const allocations=collectSeatAllocations('a-seat-allocation');let totalAllocated=0;for(const cid of ids){const c=cabins.find(x=>x.id===cid);const n=Number(allocations[cid]);if(!c||n<1||n>c.seater){alert('Please enter 1 to '+(c?c.seater:0)+' occupied seats for '+cid+'.');return;}totalAllocated+=n;}
   const start=readAgreementDate('f2-start'),end=readAgreementDate('f2-end');if(!start){alert('Agreement start date is required in DD/MM/YYYY format.');return;}if(!end){alert('Agreement end date is required in DD/MM/YYYY format.');return;}if(end<start){alert('Agreement end date cannot be before the start date.');return;}
   const rent=parseFloat(document.getElementById('f2-rent').value)||0,deposit=parseFloat(document.getElementById('f2-deposit').value)||rent*3,advance=parseFloat(document.getElementById('f2-advance').value)||rent;
@@ -4596,6 +4559,7 @@ function showPage(id, el){
 
 // ══════════════════════════════════ REFRESH ══════════════════════════════════
 function refreshAll(){
+  if(Array.isArray(occupants)) reconcileCabinOccupancy({persist:false});
   ensurePaymentsGenerated();
   updateMetrics();
   renderFloorSummaryCards();
